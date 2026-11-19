@@ -1078,6 +1078,18 @@ class RunMixin:
             except Exception:
                 pass
 
+            # Match FX commands to this request without changing the native
+            # tool set selected above, including Ask/Plan mode restrictions.
+            from ..utils.mcp.fx_compat import tools_for_request
+            _fx_mode = ("plan_executing" if plan_executing else "plan_planning") \
+                if plan_mode else ("agent" if use_agent else "ask")
+            _request = next((m.get("content", "") for m in reversed(messages)
+                             if m.get("role") == "user"), "")
+            if isinstance(_request, list):
+                _request = "\n".join(p.get("text", "") for p in _request
+                                     if isinstance(p, dict) and p.get("type") == "text")
+            tools = tools_for_request(tools, _request, mode=_fx_mode)
+
             # ★ 记忆开关关闭时，从 tool schema 中剔除 search_memory，
             #   避免 LLM 在关闭长期记忆的情况下仍调用它读到污染性经验。
             if not self._is_memory_active():

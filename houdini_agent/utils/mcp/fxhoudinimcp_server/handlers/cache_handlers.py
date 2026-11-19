@@ -1,0 +1,389 @@
+"""Cache management handlers for FXHoudini-MCP.
+
+Provides tools for listing, inspecting, clearing, and writing
+file caches from Houdini's filecache and rop_geometry nodes.
+"""
+
+from __future__ import annotations
+
+import contextlib
+
+# Built-in
+import glob
+import os
+from typing import Any
+
+# Third-party
+import hou
+
+# Internal
+from ..dispatcher import register_handler
+from ..outputs import (
+    failure_verdict,
+    reported_outputs,
+    write_verdict,
+)
+
+
+def _menu_index_by_label(parm: hou.Parm, label_substring: str) -> int | None:
+    """Find a menu parameter's index whose label contains *label_substring*."""
+    template = parm.parmTemplate()
+    labels = list(template.menuLabels())
+    items = list(template.menuItems())
+    target = label_substring.lower()
+    for idx, label in enumerate(labels):
+        if target in label.lower():
+            return int(items[idx]) if items[idx].isdigit() else idx
+    return None
+
+
+###### Helpers
+
+
+def _get_node(node_path: str) -> hou.Node:
+    """Resolve a node path and raise a clear error if it does not exist."""
+    node = hou.node(node_path)
+    if node is None:
+        raise ValueError(f"Node not found: {node_path}")
+    return node
+
+
+def _is_cache_node(node: hou.Node) -> bool:
+    """Check if a node is a cache-type node (filecache or rop_geometry)."""
+    type_name = node.type().name()
+    return type_name in (
+        "filecache",
+        "filecache::2.0",
+        "rop_geometry",
+        "rop_alembic",
+        "file",
+    )
+
+
+def _get_file_pattern(node: hou.Node) -> str | None:
+    """Extract the file path pattern from a cache node."""
+    for parm_name in ("file", "sopoutput", "filename", "filepath"):
+        parm = node.parm(parm_name)
+        if parm is not None:
+            try:
+                return parm.eval()
+            except Exception:
+                return parm.rawValue()
+    return None
+
+
+def _get_file_pattern_raw(node: hou.Node) -> str | None:
+    """Extract the raw (unexpanded) file path pattern from a cache node."""
+    for parm_name in ("file", "sopoutput", "filename", "filepath"):
+        parm = node.parm(parm_name)
+        if parm is not None:
+            return parm.rawValue()
+    return None
+
+
+def _expand_frame_pattern(pattern: str) -> str:
+    """Convert a Houdini frame pattern ($F4, $F, etc.) to a glob pattern."""
+    import re
+
+    # Replace $F4, $F3, $F with wildcard
+    result = re.sub(r"\$F\d*", "*", pattern)
+    # Replace `$HIP`, `$JOB` etc. with their expanded values
+    with contextlib.suppress(Exception):
+        result = hou.text.expandString(result)
+    return result
+
+
+###### cache.list_caches
+
+
+def _list_caches(*, root_path: str = "/", **_: Any) -> dict[str, Any]:
+    """Recursively find all cache-type nodes under the given root.
+
+    Looks for filecache, rop_geometry, and similar nodes, returning
+    their file path patterns and frame ranges.
+
+    Args:
+        root_path: Root path to search from (default: "/").
+    """
+    root = _get_node(root_path)
+    all_nodes = root.allSubChildren()
+
+    caches: list[dict[str, Any]] = []
+    for node in all_nodes:
+        if not _is_cache_node(node):
+            continue
+
+        file_pattern = _get_file_pattern(node)
+        raw_pattern = _get_file_pattern_raw(node)
+
+        # Try to get frame range
+        frame_range = None
+        for start_name, end_name in [
+            ("f1", "f2"),
+            ("trange", None),
+        ]:
+            start_parm = node.parm(start_name)
+            end_parm = node.parm(end_name) if end_name else None
+            if start_parm is not None and end_parm is not None:
+                with contextlib.suppress(Exception):
+                    frame_range = [start_parm.eval(), end_parm.eval()]
+                break
+
+        # Determine status by checking if any files exist
+        status = "unknown"
+        if file_pattern:
+            glob_pattern = _expand_frame_pattern(raw_pattern if raw_pattern else file_pattern)
+            try:
+                existing = glob.glob(glob_pattern)
+                status = f"cached ({len(existing)} files)" if existing else "empty"
+            except Exception:
+                status = "unknown"
+
+        caches.append(
+            {
+                "node_path": node.path(),
+                "file_pattern": file_pattern,
+                "frame_range": frame_range,
+                "status": status,
+            }
+        )
+
+    return {
+        "count": len(caches),
+        "caches": caches,
+    }
+
+
+register_handler("cache.list_caches", _list_caches)
+
+
+###### cache.get_cache_status
+
+
+def _get_cache_status(*, node_path: str, **_: Any) -> dict[str, Any]:
+    """Get the status of a specific cache node.
+
+    Expands the file path pattern, checks which frames exist on disk,
+    and calculates the total size.
+
+    Args:
+        node_path: Path to the cache node.
+    """
+    node = _get_node(node_path)
+
+    file_pattern = _get_file_pattern(node)
+    raw_pattern = _get_file_pattern_raw(node)
+
+    if not file_pattern and not raw_pattern:
+        raise ValueError(f"Could not determine file pattern for node: {node_path}")
+
+    # Find existing files using glob
+    glob_pattern = _expand_frame_pattern(raw_pattern if raw_pattern else file_pattern)
+
+    try:
+        existing_files = sorted(glob.glob(glob_pattern))
+    except Exception:
+        existing_files = []
+
+    # Extract frame numbers from filenames
+    import re
+
+    frames_on_disk: list[int] = []
+    total_size_bytes = 0
+
+    for filepath in existing_files:
+        # Try to extract frame number from filename
+        match = re.search(r"\.(\d+)\.", os.path.basename(filepath))
+        if match:
+            frames_on_disk.append(int(match.group(1)))
+
+        # Accumulate file sizes
+        with contextlib.suppress(OSError):
+            total_size_bytes += os.path.getsize(filepath)
+
+    total_size_mb = round(total_size_bytes / (1024 * 1024), 2)
+    is_valid = len(existing_files) > 0
+
+    return {
+        "node_path": node_path,
+        "file_pattern": file_pattern,
+        "glob_pattern": glob_pattern,
+        "file_count": len(existing_files),
+        "frames_on_disk": frames_on_disk,
+        "total_size_mb": total_size_mb,
+        "is_valid": is_valid,
+    }
+
+
+register_handler("cache.get_cache_status", _get_cache_status)
+
+
+###### cache.clear_cache
+
+
+def _clear_cache(
+    *,
+    node_path: str,
+    frame_range: list[int] | None = None,
+    **_: Any,
+) -> dict[str, Any]:
+    """Delete cached files from disk for a cache node.
+
+    If frame_range is provided, only deletes files for frames within
+    that range. Otherwise deletes all matching files.
+
+    Args:
+        node_path: Path to the cache node.
+        frame_range: Optional [start_frame, end_frame] to limit deletion.
+    """
+    node = _get_node(node_path)
+
+    raw_pattern = _get_file_pattern_raw(node)
+    file_pattern = _get_file_pattern(node)
+
+    if not file_pattern and not raw_pattern:
+        raise ValueError(f"Could not determine file pattern for node: {node_path}")
+
+    glob_pattern = _expand_frame_pattern(raw_pattern if raw_pattern else file_pattern)
+
+    try:
+        existing_files = sorted(glob.glob(glob_pattern))
+    except Exception:
+        existing_files = []
+
+    import re
+
+    deleted_count = 0
+    freed_bytes = 0
+
+    for filepath in existing_files:
+        should_delete = True
+
+        # If frame_range is specified, only delete matching frames
+        if frame_range is not None and len(frame_range) >= 2:
+            match = re.search(r"\.(\d+)\.", os.path.basename(filepath))
+            if match:
+                frame_num = int(match.group(1))
+                if frame_num < frame_range[0] or frame_num > frame_range[1]:
+                    should_delete = False
+            else:
+                should_delete = False
+
+        if should_delete:
+            try:
+                file_size = os.path.getsize(filepath)
+                os.remove(filepath)
+                deleted_count += 1
+                freed_bytes += file_size
+            except OSError:
+                pass
+
+    freed_mb = round(freed_bytes / (1024 * 1024), 2)
+
+    return {
+        "node_path": node_path,
+        "deleted_count": deleted_count,
+        "freed_mb": freed_mb,
+    }
+
+
+register_handler("cache.clear_cache", _clear_cache)
+
+
+###### cache.write_cache
+
+
+def _write_cache(
+    *,
+    node_path: str,
+    frame_range: list[int] | None = None,
+    **_: Any,
+) -> dict[str, Any]:
+    """Execute (render) a cache node to write files to disk.
+
+    Presses the "execute" button on the cache node or calls render()
+    for ROP-style caches.
+
+    Args:
+        node_path: Path to the cache node.
+        frame_range: Optional [start_frame, end_frame] to render. If not
+            provided, uses the node's own frame range settings.
+    """
+    node = _get_node(node_path)
+
+    # Set frame range if provided
+    if frame_range is not None and len(frame_range) >= 2:
+        # Try to set trange to "custom" or specific frame range parms
+        trange_parm = node.parm("trange")
+        if trange_parm is not None:
+            # Resolve menu index dynamically (avoids version-specific hardcoding)
+            trange_idx = _menu_index_by_label(trange_parm, "specific frame")
+            trange_parm.set(trange_idx if trange_idx is not None else 1)
+
+        f1_parm = node.parm("f1")
+        f2_parm = node.parm("f2")
+        if f1_parm is not None:
+            f1_parm.set(frame_range[0])
+        if f2_parm is not None:
+            f2_parm.set(frame_range[1])
+
+    # Snapshot the output before executing, so "did a cache appear" is answerable
+    # afterwards. pressButton() is fire-and-forget: a File Cache SOP that fails to
+    # write records the failure on the node and raises nothing at all, so this
+    # function used to set status = "success" on the strength of having pressed a
+    # button. That is the report an artist trusts before closing Houdini for the
+    # night, and it was never evidence that a cache exists.
+    before = reported_outputs(node)
+
+    failure: Exception | None = None
+    method = "execute button"
+    try:
+        # Try pressing the execute button first (filecache style)
+        execute_parm = node.parm("execute")
+        if execute_parm is not None:
+            execute_parm.pressButton()
+        else:
+            # Fall back to render() for ROP-style nodes
+            method = "render()"
+            if frame_range is not None and len(frame_range) >= 2:
+                frame_range_tuple = (
+                    frame_range[0],
+                    frame_range[1],
+                    1,  # frame increment
+                )
+                node.render(frame_range=frame_range_tuple)
+            else:
+                node.render()
+    except Exception as e:  # noqa: BLE001 - reported, not swallowed
+        failure = e
+
+    # Determine what frame range was used
+    actual_range = frame_range
+    if actual_range is None:
+        f1_parm = node.parm("f1")
+        f2_parm = node.parm("f2")
+        if f1_parm is not None and f2_parm is not None:
+            with contextlib.suppress(Exception):
+                actual_range = [f1_parm.eval(), f2_parm.eval()]
+
+    verdict = (
+        failure_verdict(node, before, failure, action="Cache write")
+        if failure is not None
+        else write_verdict(node, before, action="Cache write")
+    )
+    return {
+        "node_path": node_path,
+        "frame_range": actual_range,
+        "method": method,
+        # Kept so existing callers reading `status` still work, but derived from
+        # the same evidence as `success` rather than from an unconditional string.
+        "status": (
+            "success"
+            if verdict["success"]
+            else "error: " + ("; ".join(verdict.get("errors", [])) or verdict["message"])
+        ),
+        **verdict,
+    }
+
+
+register_handler("cache.write_cache", _write_cache)

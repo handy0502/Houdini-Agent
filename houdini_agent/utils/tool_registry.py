@@ -365,6 +365,29 @@ class ToolRegistry:
         'perf': ['performance', 'profile', 'benchmark', 'speed', 'slow',
                  '性能', '速度', '慢', '优化'],
         'file': ['save', 'undo', 'redo', '保存', '撤销', '重做'],
+        'animation': ['animation', 'animate', 'keyframe', 'timeline', 'playback',
+                      '动画', '关键帧', '时间轴', '播放'],
+        'rendering': ['render', 'renderer', 'karma', 'mantra', '渲染', '出图'],
+        'viewport': ['viewport', 'pane', 'camera view', '视口', '窗口截图'],
+        'materials': ['material', 'shader', '材质', '着色器'],
+        'simulation': ['simulation', 'simulate', 'dop', 'pyro', 'rbd', 'flip',
+                       'vellum', '模拟', '烟火', '刚体', '流体', '布料'],
+        'usd': ['usd', 'lop', 'solaris', 'stage', 'prim', '舞台'],
+        'pdg': ['pdg', 'top network', 'work item', '任务图'],
+        'cops': ['cop', 'copernicus', 'composite', '合成'],
+        'chops': ['chop', 'channel', 'audio', '音频', '通道'],
+        'hda': ['hda', 'digital asset', '数字资产'],
+        'cache': ['cache', 'bgeo', '缓存'],
+        'takes': ['take', 'takes', '镜头版本'],
+        'vex': ['vex', 'wrangle'],
+        'scene': ['scene', 'hip file', '场景', '工程文件'],
+        'geometry': ['geometry', 'attribute', 'volume', '几何', '属性', '体积'],
+        'graph': ['node graph', 'network graph', '节点图', '网络图'],
+        'parameters': ['parameter', 'expression', '参数', '表达式'],
+        'shelf': ['shelf', 'shelf tool', '工具架'],
+        'context': ['context option', '上下文选项'],
+        'nodes': ['node', '节点'],
+        'help': ['help', 'documentation', 'doc', '帮助', '文档', '说明'],
     }
 
     def classify_intent(self, user_message: str) -> Set[str]:
@@ -397,6 +420,14 @@ class ToolRegistry:
         target_names: Set[str] = set()
         for group in active_groups:
             target_names |= self._INTENT_TOOL_GROUPS.get(group, set())
+
+        # Dynamically contributed tools advertise the intents that make their
+        # schemas visible, keeping the default prompt compact.
+        intent_tags = {f"intent:{intent}" for intent in active_groups}
+        with self._lock:
+            for name, meta in self._tools.items():
+                if meta.tags & intent_tags:
+                    target_names.add(name)
 
         # 添加所有 skill 工具（skill 通常应始终可用）
         with self._lock:

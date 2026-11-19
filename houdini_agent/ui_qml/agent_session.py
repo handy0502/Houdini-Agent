@@ -72,7 +72,7 @@ class AgentSession:
     # ---- run one user turn ----
     def run(self, user_text, model, provider, mode, callbacks, context_limit=128000,
             enable_thinking=True, supports_vision=False, tools=None, max_iter=None,
-            images=None, rag=True, memory=False):
+            images=None, rag=True, memory=False, tool_mode=None):
         self.client.reset_stop()
         incoming_images = images or []
         usable_images = incoming_images if supports_vision else []
@@ -93,6 +93,11 @@ class AgentSession:
         if max_iter is None:
             max_iter = 15 if mode == "Ask" else 999
         tools_override = tools if tools is not None else self.tools
+        from houdini_agent.utils.mcp.fx_compat import tools_for_request
+        tools_override = tools_for_request(
+            tools_override, user_text,
+            mode=tool_mode or {"Ask": "ask", "Plan": "plan_planning"}.get(mode, "agent"),
+        )
         # 非视觉模型默认禁用视口截图检查工具（它依赖把图片回注给模型分析）
         if not supports_vision and tools_override:
             tools_override = [

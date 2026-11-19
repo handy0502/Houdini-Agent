@@ -1301,6 +1301,17 @@ class HoudiniMCP(NetworkInspectMixin, NodeOpsMixin, ParamOpsMixin, ExecOpsMixin,
 
         handler_name = self._TOOL_DISPATCH.get(tool_name)
 
+        # FX tools are catalogued in the desktop Agent but execute here, inside
+        # Houdini, so they do not depend on ToolRegistry import order.
+        if handler_name is None and tool_name.startswith("fx_"):
+            try:
+                from .fx_compat import command_name as _fx_command, execute as _fx_execute
+                command = _fx_command(tool_name)
+                if command:
+                    return _fx_execute(command, arguments)
+            except Exception as e:
+                return {"success": False, "error": f"FX MCP 工具执行失败: {e}"}
+
         # ★ 如果内部分派表中不存在，尝试外部工具（HookManager + ToolRegistry）
         if handler_name is None:
             try:

@@ -643,6 +643,43 @@ def _setup_fastmcp_tools():
 		}
 
 
+def _register_fx_compat_tools() -> None:
+	"""Expose the embedded command set without flooding MCP clients with schemas."""
+	if mcp is None:
+		return
+
+	@mcp.tool(name="fx_list_commands", description="列出 Agent 内置的 FXHoudini-MCP 兼容命令")  # type: ignore[attr-defined]
+	def fx_list_commands() -> dict:
+		from .fx_compat import list_commands
+		commands = list_commands()
+		return {
+			"status": "success",
+			"message": f"共 {len(commands)} 个 FX MCP 命令。",
+			"data": commands,
+		}
+
+	@mcp.tool(name="fx_execute", description="通过 Agent 执行一个 FXHoudini-MCP 兼容命令")  # type: ignore[attr-defined]
+	def fx_execute(command: str, params: dict | None = None) -> dict:
+		from .fx_compat import execute
+		result = execute(command, params or {})
+		if result.get("success"):
+			data = {"result": result.get("result")}
+			if result.get("_viewport_image"):
+				data["image_base64"] = result["_viewport_image"]
+				data["mime_type"] = result.get("_image_media_type", "image/png")
+			return {
+				"status": "success",
+				"message": "FX MCP 命令执行成功。",
+				"data": data,
+			}
+		return {
+			"status": "error",
+			"message": result.get("error", "FX MCP 命令执行失败。"),
+			"code": result.get("error_code", "FX_MCP_ERROR"),
+			"data": result.get("details"),
+		}
+
+
 def _mcp_thread_runner():
 	if not _fastmcp_available():
 		return
@@ -700,6 +737,7 @@ def ensure_mcp_running(auto_start: bool = True) -> tuple[bool, str]:
 		return True, "MCP 服务器已在运行。"
 	mcp = FastMCP("Houdini MCP Server")  # type: ignore
 	_setup_fastmcp_tools()
+	_register_fx_compat_tools()
 	if auto_start:
 		mcp_thread_handle = threading.Thread(target=_mcp_thread_runner, daemon=True)
 		mcp_thread_handle.start()
