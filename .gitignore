@@ -16,11 +16,17 @@ dist_installer/
 cache/
 
 # IDE
-.idea/
-.vscode/
-.cursor/
+.*/
+.*
 *.swp
 *.swo
+
+*.jpg
+*.png
+*.exr
+*.hip
+*.md
+assets/
 
 # Config (contains API keys)
 config/houdini_ai.ini

@@ -1,0 +1,5325 @@
+{
+  "animation.delete_keyframe": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_animation_delete_keyframe",
+        "description": "[FX MCP/animation] Delete a keyframe at the specified frame.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "parm_name": {
+              "type": "string"
+            },
+            "frame": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "node_path",
+            "parm_name",
+            "frame"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "animation"
+  },
+  "animation.get_frame": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_animation_get_frame",
+        "description": "[FX MCP/animation] Get the current frame.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "animation"
+  },
+  "animation.get_keyframes": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_animation_get_keyframes",
+        "description": "[FX MCP/animation] Get all keyframes on a parameter.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "parm_name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path",
+            "parm_name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "animation"
+  },
+  "animation.playbar_control": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_animation_playbar_control",
+        "description": "[FX MCP/animation] Control playback: play, stop, or reverse.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string"
+            },
+            "real_time": {
+              "type": "boolean"
+            },
+            "fps": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "animation"
+  },
+  "animation.set_frame": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_animation_set_frame",
+        "description": "[FX MCP/animation] Set the current frame.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "frame": {
+              "type": "number",
+              "description": "Frame number. Non-numeric input used to reach hou.setFrame and come back as \"in method 'setFrame', argument 1 of type 'double'\", a SWIG binding message that names neither the argument nor this server."
+            }
+          },
+          "required": [
+            "frame"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "animation"
+  },
+  "animation.set_frame_range": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_animation_set_frame_range",
+        "description": "[FX MCP/animation] Set the global frame range.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "start": {
+              "type": "number"
+            },
+            "end": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "start",
+            "end"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "animation"
+  },
+  "animation.set_keyframe": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_animation_set_keyframe",
+        "description": "[FX MCP/animation] Set a single keyframe on a parameter.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "parm_name": {
+              "type": "string"
+            },
+            "frame": {
+              "type": "number"
+            },
+            "value": {
+              "type": "number"
+            },
+            "slope": {
+              "type": "number"
+            },
+            "accel": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "node_path",
+            "parm_name",
+            "frame",
+            "value"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "animation"
+  },
+  "animation.set_keyframes": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_animation_set_keyframes",
+        "description": "[FX MCP/animation] Batch-set multiple keyframes on a parameter.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "parm_name": {
+              "type": "string"
+            },
+            "keyframes": {
+              "type": "array",
+              "items": {}
+            }
+          },
+          "required": [
+            "node_path",
+            "parm_name",
+            "keyframes"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "animation"
+  },
+  "animation.set_playback_range": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_animation_set_playback_range",
+        "description": "[FX MCP/animation] Set the playback range (subset of global range).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "start": {
+              "type": "number"
+            },
+            "end": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "start",
+            "end"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "animation"
+  },
+  "cache.clear_cache": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_cache_clear_cache",
+        "description": "[FX MCP/cache] Delete cached files from disk for a cache node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the cache node."
+            },
+            "frame_range": {
+              "type": "integer",
+              "description": "Optional [start_frame, end_frame] to limit deletion."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "cache"
+  },
+  "cache.get_cache_status": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_cache_get_cache_status",
+        "description": "[FX MCP/cache] Get the status of a specific cache node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the cache node."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "cache"
+  },
+  "cache.list_caches": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_cache_list_caches",
+        "description": "[FX MCP/cache] Recursively find all cache-type nodes under the given root.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "root_path": {
+              "type": "string",
+              "description": "Root path to search from (default: \"/\")."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "cache"
+  },
+  "cache.write_cache": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_cache_write_cache",
+        "description": "[FX MCP/cache] Execute (render) a cache node to write files to disk.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the cache node."
+            },
+            "frame_range": {
+              "type": "integer",
+              "description": "Optional [start_frame, end_frame] to render. If not provided, uses the node's own frame range settings."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "cache"
+  },
+  "chops.create_chop_node": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_chops_create_chop_node",
+        "description": "[FX MCP/chops] Create a CHOP node inside a parent network.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "parent_path": {
+              "type": "string",
+              "description": "Path to the parent network."
+            },
+            "chop_type": {
+              "type": "string",
+              "description": "Type of CHOP node to create (e.g. \"wave\", \"noise\", \"math\")."
+            },
+            "name": {
+              "type": "string",
+              "description": "Optional name for the new node."
+            }
+          },
+          "required": [
+            "parent_path",
+            "chop_type"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "chops"
+  },
+  "chops.export_chop_to_parm": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_chops_export_chop_to_parm",
+        "description": "[FX MCP/chops] Create a CHOP export reference on a parameter.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "chop_path": {
+              "type": "string",
+              "description": "Path to the CHOP node."
+            },
+            "channel_name": {
+              "type": "string",
+              "description": "Name of the channel to export."
+            },
+            "target_node_path": {
+              "type": "string",
+              "description": "Path to the target node containing the parameter."
+            },
+            "target_parm_name": {
+              "type": "string",
+              "description": "Name of the parameter to set the expression on."
+            }
+          },
+          "required": [
+            "chop_path",
+            "channel_name",
+            "target_node_path",
+            "target_parm_name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "chops"
+  },
+  "chops.get_chop_data": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_chops_get_chop_data",
+        "description": "[FX MCP/chops] Get CHOP node track data.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the CHOP node."
+            },
+            "channel_name": {
+              "type": "string",
+              "description": "Optional specific channel name to retrieve samples for."
+            },
+            "start": {
+              "type": "integer",
+              "description": "Optional start sample index."
+            },
+            "end": {
+              "type": "integer",
+              "description": "Optional end sample index."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "chops"
+  },
+  "chops.list_chop_channels": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_chops_list_chop_channels",
+        "description": "[FX MCP/chops] List all tracks/channels on a CHOP node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the CHOP node."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "chops"
+  },
+  "code.evaluate_expression": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_code_evaluate_expression",
+        "description": "[FX MCP/code] Evaluate an expression and return its result.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "expression": {
+              "type": "string"
+            },
+            "language": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "expression"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "code"
+  },
+  "code.execute_hscript": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_code_execute_hscript",
+        "description": "[FX MCP/code] Execute an HScript command and return its output.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "command"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "code"
+  },
+  "code.execute_python": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_code_execute_python",
+        "description": "[FX MCP/code] Execute arbitrary Python code inside Houdini's interpreter.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "return_expression": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "code"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "code"
+  },
+  "code.get_env_variable": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_code_get_env_variable",
+        "description": "[FX MCP/code] Get a Houdini environment variable.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "var_name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "var_name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "code"
+  },
+  "context.compare_snapshots": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_context_compare_snapshots",
+        "description": "[FX MCP/context] Take or compare scene snapshots for structural diffing.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "description": "\"take\" to store current state, \"compare\" to diff against stored."
+            },
+            "snapshot_name": {
+              "type": "string",
+              "description": "Name of the snapshot to take or compare against."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "context"
+  },
+  "context.explain_node": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_context_explain_node",
+        "description": "[FX MCP/context] Return a human-readable explanation of a node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Absolute path to the node."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "context"
+  },
+  "context.get_cook_chain": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_context_get_cook_chain",
+        "description": "[FX MCP/context] Trace the cook dependency chain from sources to the target node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Absolute path to the target node."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "context"
+  },
+  "context.get_network_overview": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_context_get_network_overview",
+        "description": "[FX MCP/context] Return a compact network overview of nodes and connections.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Root network path to inspect."
+            },
+            "depth": {
+              "type": "integer",
+              "description": "How many levels deep to recurse into children."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "context"
+  },
+  "context.get_node_errors_detailed": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_context_get_node_errors_detailed",
+        "description": "[FX MCP/context] Deep error analysis for a specific node or all descendants of a root.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "If given, analyze errors on this specific node."
+            },
+            "root_path": {
+              "type": "string",
+              "description": "If node_path is None, scan all descendants of this root."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "context"
+  },
+  "context.get_scene_summary": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_context_get_scene_summary",
+        "description": "[FX MCP/context] Return a high-level overview of the entire Houdini scene.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "context"
+  },
+  "context.get_selection": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_context_get_selection",
+        "description": "[FX MCP/context] Get the current selection in Houdini.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "context"
+  },
+  "context.set_selection": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_context_set_selection",
+        "description": "[FX MCP/context] Select nodes by their paths.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_paths": {
+              "type": "array",
+              "items": {},
+              "description": "List of absolute node paths to select."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "context"
+  },
+  "cops.create_cop_node": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_cops_create_cop_node",
+        "description": "[FX MCP/cops] Create a Copernicus COP node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "parent_path": {
+              "type": "string",
+              "description": "Path to the parent COP network."
+            },
+            "cop_type": {
+              "type": "string",
+              "description": "The COP node type to create (e.g. \"file\", \"vopcop2gen\")."
+            },
+            "name": {
+              "type": "string",
+              "description": "Optional explicit name for the node."
+            }
+          },
+          "required": [
+            "parent_path",
+            "cop_type"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "cops"
+  },
+  "cops.get_cop_geometry": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_cops_get_cop_geometry",
+        "description": "[FX MCP/cops] Get geometry representation from a COP node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the COP node."
+            },
+            "output_index": {
+              "type": "integer",
+              "description": "Output connector index (default 0)."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "cops"
+  },
+  "cops.get_cop_info": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_cops_get_cop_info",
+        "description": "[FX MCP/cops] Return information about a COP node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the COP node."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "cops"
+  },
+  "cops.get_cop_layer": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_cops_get_cop_layer",
+        "description": "[FX MCP/cops] Get image layer data information from a COP node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the COP node."
+            },
+            "output_index": {
+              "type": "integer",
+              "description": "Output connector index (default 0)."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "cops"
+  },
+  "cops.get_cop_vdb": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_cops_get_cop_vdb",
+        "description": "[FX MCP/cops] Get VDB data information from a COP node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the COP node."
+            },
+            "output_index": {
+              "type": "integer",
+              "description": "Output connector index (default 0)."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "cops"
+  },
+  "cops.list_cop_node_types": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_cops_list_cop_node_types",
+        "description": "[FX MCP/cops] List available COP node types.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "filter": {
+              "type": "string",
+              "description": "Optional substring filter for node type names."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "cops"
+  },
+  "cops.set_cop_flags": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_cops_set_cop_flags",
+        "description": "[FX MCP/cops] Set flags on a COP node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the COP node."
+            },
+            "display": {
+              "type": "boolean",
+              "description": "Set the display flag."
+            },
+            "export_flag": {
+              "type": "boolean",
+              "description": "Set the render/export flag."
+            },
+            "compress": {
+              "type": "boolean",
+              "description": "Set the compress flag."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "cops"
+  },
+  "dops.get_dop_field": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_dops_get_dop_field",
+        "description": "[FX MCP/dops] Read a specific field value from a DOP record.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "object_name": {
+              "type": "string"
+            },
+            "data_path": {
+              "type": "string"
+            },
+            "field_name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path",
+            "object_name",
+            "data_path",
+            "field_name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "simulation"
+  },
+  "dops.get_dop_object": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_dops_get_dop_object",
+        "description": "[FX MCP/dops] Get detailed data for a specific simulation object.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "object_name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path",
+            "object_name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "simulation"
+  },
+  "dops.get_dop_relationships": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_dops_get_dop_relationships",
+        "description": "[FX MCP/dops] List relationships between DOP objects.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "simulation"
+  },
+  "dops.get_sim_memory_usage": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_dops_get_sim_memory_usage",
+        "description": "[FX MCP/dops] Get a detailed memory breakdown for the simulation.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "simulation"
+  },
+  "dops.get_simulation_info": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_dops_get_simulation_info",
+        "description": "[FX MCP/dops] Get DOP network simulation state information.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "simulation"
+  },
+  "dops.list_dop_objects": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_dops_list_dop_objects",
+        "description": "[FX MCP/dops] List all DOP objects and their types in the simulation.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "simulation"
+  },
+  "dops.reset_simulation": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_dops_reset_simulation",
+        "description": "[FX MCP/dops] Reset the simulation to its initial state.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "simulation"
+  },
+  "dops.step_simulation": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_dops_step_simulation",
+        "description": "[FX MCP/dops] Advance the simulation by N frames.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "steps": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "simulation"
+  },
+  "geometry.find_nearest_point": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_geometry_find_nearest_point",
+        "description": "[FX MCP/geometry] Find nearest point(s) to a given position.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "position": {
+              "type": "number"
+            },
+            "max_results": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "node_path",
+            "position"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "geometry"
+  },
+  "geometry.get_attrib_stats": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_geometry_get_attrib_stats",
+        "description": "[FX MCP/geometry] Aggregate statistics for numeric attributes: min, max, mean, sum.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "attribs": {
+              "type": "array",
+              "items": {}
+            },
+            "attrib_class": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "geometry"
+  },
+  "geometry.get_attrib_values": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_geometry_get_attrib_values",
+        "description": "[FX MCP/geometry] Read attribute values as a flat array with pagination.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "attrib_name": {
+              "type": "string"
+            },
+            "attrib_class": {
+              "type": "string"
+            },
+            "start": {
+              "type": "integer"
+            },
+            "count": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "node_path",
+            "attrib_name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "geometry"
+  },
+  "geometry.get_attribute_info": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_geometry_get_attribute_info",
+        "description": "[FX MCP/geometry] Detailed attribute info: type, size, default value.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "attrib_name": {
+              "type": "string"
+            },
+            "attrib_class": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path",
+            "attrib_name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "geometry"
+  },
+  "geometry.get_bounding_box": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_geometry_get_bounding_box",
+        "description": "[FX MCP/geometry] Get axis-aligned bounding box for a SOP node's geometry.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "geometry"
+  },
+  "geometry.get_geometry_info": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_geometry_get_geometry_info",
+        "description": "[FX MCP/geometry] Return summary information about a SOP node's geometry.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "geometry"
+  },
+  "geometry.get_group_members": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_geometry_get_group_members",
+        "description": "[FX MCP/geometry] Get element indices belonging to a group, with pagination.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "group_name": {
+              "type": "string"
+            },
+            "group_type": {
+              "type": "string"
+            },
+            "start": {
+              "type": "integer"
+            },
+            "count": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "node_path",
+            "group_name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "geometry"
+  },
+  "geometry.get_groups": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_geometry_get_groups",
+        "description": "[FX MCP/geometry] List all point/prim/edge groups with membership counts.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "geometry"
+  },
+  "geometry.get_points": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_geometry_get_points",
+        "description": "[FX MCP/geometry] Read point positions and attributes with pagination.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "attributes": {
+              "type": "array",
+              "items": {}
+            },
+            "start": {
+              "type": "integer"
+            },
+            "count": {
+              "type": "integer"
+            },
+            "group": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "geometry"
+  },
+  "geometry.get_prim_intrinsics": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_geometry_get_prim_intrinsics",
+        "description": "[FX MCP/geometry] Get intrinsic values for primitives.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "prim_index": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "geometry"
+  },
+  "geometry.get_prims": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_geometry_get_prims",
+        "description": "[FX MCP/geometry] Read primitive data and attributes with pagination.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "attributes": {
+              "type": "array",
+              "items": {}
+            },
+            "start": {
+              "type": "integer"
+            },
+            "count": {
+              "type": "integer"
+            },
+            "group": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "geometry"
+  },
+  "geometry.get_volume_info": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_geometry_get_volume_info",
+        "description": "[FX MCP/geometry] Per-volume names, resolution, active voxels and value ranges.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "max_volumes": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "geometry"
+  },
+  "geometry.sample_geometry": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_geometry_sample_geometry",
+        "description": "[FX MCP/geometry] Smart sampling: get N evenly distributed points from geometry.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "sample_count": {
+              "type": "integer"
+            },
+            "seed": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "geometry"
+  },
+  "geometry.set_detail_attrib": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_geometry_set_detail_attrib",
+        "description": "[FX MCP/geometry] Set a detail (global) attribute via an appended Attribute Create SOP.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "attrib_name": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path",
+            "attrib_name",
+            "value"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "geometry"
+  },
+  "graph.build_network": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_graph_build_network",
+        "description": "[FX MCP/graph] Build a whole node network atomically, with upfront validation.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "parent_path": {
+              "type": "string",
+              "description": "Network to build inside (e.g. \"/obj/geo1\")."
+            },
+            "nodes": {
+              "type": "array",
+              "items": {},
+              "description": "Node specs, each a dict: type (str, required): node type name (unversioned ok). name (str): node name, referenceable by later specs. parms (dict): parameter values; lists set whole parm tuples. inputs (list): wiring. Entries are either a source string (wired positionally) or {\"index\", \"source\", \"source_output\"}. Sources resolve to spec node names first, then children of parent, then absolute paths. flags (dict): display/render/bypass/template booleans. color (list[3]) and comment (str): network annotations."
+            },
+            "dry_run": {
+              "type": "boolean",
+              "description": "Validate only; never mutates the scene."
+            },
+            "layout": {
+              "type": "boolean",
+              "description": "Lay out the parent network afterwards (respects the FXHOUDINIMCP_AUTO_LAYOUT toggle)."
+            }
+          },
+          "required": [
+            "parent_path",
+            "nodes"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "graph"
+  },
+  "graph.cook_frame_range": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_graph_cook_frame_range",
+        "description": "[FX MCP/graph] Cook a node frame by frame and report what changed on each frame.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Node to cook. Its output is what gets measured."
+            },
+            "start": {
+              "type": "number",
+              "description": "First frame. Defaults to the playbar start."
+            },
+            "end": {
+              "type": "number",
+              "description": "Last frame, inclusive. Defaults to the playbar end."
+            },
+            "step": {
+              "type": "number",
+              "description": "Frame increment. 1.0 for a sequential solver -- skipping frames gives a solver a discontinuous time step and invalid results."
+            },
+            "attribs": {
+              "type": "array",
+              "items": {},
+              "description": "Point attributes to aggregate per frame (min/max/mean/sum)."
+            },
+            "volumes": {
+              "type": "boolean",
+              "description": "Also report per-volume name, resolution and value range."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "graph"
+  },
+  "graph.find_expensive_nodes": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_graph_find_expensive_nodes",
+        "description": "[FX MCP/graph] Profile cooking under *root_path* and rank nodes by cook cost.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "root_path": {
+              "type": "string"
+            },
+            "frame": {
+              "type": "number"
+            },
+            "limit": {
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "graph"
+  },
+  "graph.get_cook_status": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_graph_get_cook_status",
+        "description": "[FX MCP/graph] Whether a node has cooked, how often, and whether it changes per frame.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Node to report on."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "graph"
+  },
+  "graph.get_node_card": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_graph_get_node_card",
+        "description": "[FX MCP/graph] Version-exact documentation card for a node type.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_type": {
+              "type": "string"
+            },
+            "context": {
+              "type": "string"
+            },
+            "parm_filter": {
+              "type": "string"
+            },
+            "include_help": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "node_type"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "graph"
+  },
+  "graph.verify_network": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_graph_verify_network",
+        "description": "[FX MCP/graph] Inspect every node in a network: the 'middle-click everything' pass.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "parent_path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "parent_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "graph"
+  },
+  "hda.create_hda": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_hda_create_hda",
+        "description": "[FX MCP/hda] Create a new HDA from an existing subnet node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the subnet node to convert."
+            },
+            "hda_file": {
+              "type": "string",
+              "description": "Destination file path for the HDA."
+            },
+            "type_name": {
+              "type": "string",
+              "description": "The operator type name for the HDA."
+            },
+            "label": {
+              "type": "string",
+              "description": "Human-readable label for the HDA."
+            },
+            "version": {
+              "type": "string",
+              "description": "Version string (default \"1.0\")."
+            }
+          },
+          "required": [
+            "node_path",
+            "hda_file",
+            "type_name",
+            "label"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "hda"
+  },
+  "hda.get_hda_info": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_hda_get_hda_info",
+        "description": "[FX MCP/hda] Return detailed information about an HDA definition.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to an HDA node instance."
+            },
+            "hda_file": {
+              "type": "string",
+              "description": "Path to an HDA file on disk."
+            },
+            "type_name": {
+              "type": "string",
+              "description": "Fully qualified HDA type name."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "hda"
+  },
+  "hda.get_hda_section_content": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_hda_get_hda_section_content",
+        "description": "[FX MCP/hda] Read the content of a specific section in an HDA definition.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to an HDA node instance."
+            },
+            "section_name": {
+              "type": "string",
+              "description": "Name of the section to read (e.g. \"PythonModule\", \"Help\")."
+            }
+          },
+          "required": [
+            "node_path",
+            "section_name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "hda"
+  },
+  "hda.get_hda_sections": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_hda_get_hda_sections",
+        "description": "[FX MCP/hda] List all sections in an HDA definition.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to an HDA node instance."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "hda"
+  },
+  "hda.install_hda": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_hda_install_hda",
+        "description": "[FX MCP/hda] Install an HDA file into the current Houdini session.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "file_path": {
+              "type": "string",
+              "description": "Path to the HDA file to install."
+            },
+            "force": {
+              "type": "boolean",
+              "description": "If True, force reinstall even if already loaded."
+            }
+          },
+          "required": [
+            "file_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "hda"
+  },
+  "hda.list_installed_hdas": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_hda_list_installed_hdas",
+        "description": "[FX MCP/hda] List all installed HDA files and their definitions.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "filter": {
+              "type": "string",
+              "description": "Optional substring filter for HDA type names or file paths."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "hda"
+  },
+  "hda.reload_hda": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_hda_reload_hda",
+        "description": "[FX MCP/hda] Reload an HDA file from disk.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "file_path": {
+              "type": "string",
+              "description": "Path to the HDA file to reload."
+            }
+          },
+          "required": [
+            "file_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "hda"
+  },
+  "hda.set_hda_section_content": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_hda_set_hda_section_content",
+        "description": "[FX MCP/hda] Write content to a specific section in an HDA definition.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to an HDA node instance."
+            },
+            "section_name": {
+              "type": "string",
+              "description": "Name of the section to write (e.g. \"PythonModule\", \"Help\")."
+            },
+            "content": {
+              "type": "string",
+              "description": "The content to write to the section."
+            }
+          },
+          "required": [
+            "node_path",
+            "section_name",
+            "content"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "hda"
+  },
+  "hda.uninstall_hda": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_hda_uninstall_hda",
+        "description": "[FX MCP/hda] Uninstall an HDA file from the current Houdini session.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "file_path": {
+              "type": "string",
+              "description": "Path to the HDA file to uninstall."
+            }
+          },
+          "required": [
+            "file_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "hda"
+  },
+  "hda.update_hda": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_hda_update_hda",
+        "description": "[FX MCP/hda] Save the current node contents back to its HDA definition.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the HDA node instance."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "hda"
+  },
+  "help.get_help_page": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_help_get_help_page",
+        "description": "[FX MCP/help] Fetch one documentation page by path (as returned by search_help).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "\"scope/entry\", e.g. \"nodes/sop/scatter\", \"vex/functions/noise\", \"expressions/ch\". The .txt extension is optional."
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "help"
+  },
+  "help.search_help": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_help_search_help",
+        "description": "[FX MCP/help] Full-text search over the running Houdini's shipped documentation.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search words (e.g. \"pyro shaping\", \"pcfind\", \"ramp parameter\")."
+            },
+            "scope": {
+              "type": "string",
+              "description": "Restrict to one corpus — nodes, vex, expressions, hom, solaris, tops, character, ref, shelf. Default: all."
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Max results."
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "help"
+  },
+  "lops.create_light": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_lops_create_light",
+        "description": "[FX MCP/lops] Create a USD light node in a LOP network.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "parent_path": {
+              "type": "string",
+              "description": "Parent LOP network path (default: \"/stage\")."
+            },
+            "light_type": {
+              "type": "string",
+              "description": "Type of light: \"dome\", \"distant\", \"rect\", \"sphere\", \"disk\", or \"cylinder\"."
+            },
+            "name": {
+              "type": "string",
+              "description": "Optional name for the light node."
+            },
+            "intensity": {
+              "type": "number",
+              "description": "Light intensity (default: 1.0)."
+            },
+            "color": {
+              "type": "number",
+              "description": "Optional [r, g, b] color values (0.0 to 1.0)."
+            },
+            "position": {
+              "type": "number",
+              "description": "Optional [x, y, z] world position."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "usd"
+  },
+  "lops.create_light_rig": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_lops_create_light_rig",
+        "description": "[FX MCP/lops] Create a preset lighting rig in a LOP network.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "parent_path": {
+              "type": "string",
+              "description": "Parent LOP network path (default: \"/stage\")."
+            },
+            "preset": {
+              "type": "string",
+              "description": "Lighting preset name."
+            },
+            "intensity_mult": {
+              "type": "number",
+              "description": "Multiplier applied to all light intensities."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "usd"
+  },
+  "lops.create_lop_node": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_lops_create_lop_node",
+        "description": "[FX MCP/lops] Create a new LOP node with optional presets.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "parent_path": {
+              "type": "string"
+            },
+            "lop_type": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "prim_path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "parent_path",
+            "lop_type"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "usd"
+  },
+  "lops.find_usd_prims": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_lops_find_usd_prims",
+        "description": "[FX MCP/lops] Search prims by path pattern (supports * and ** wildcards).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "pattern": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path",
+            "pattern"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "usd"
+  },
+  "lops.get_last_modified_prims": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_lops_get_last_modified_prims",
+        "description": "[FX MCP/lops] Prims modified by the last LOP cook.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "usd"
+  },
+  "lops.get_stage_info": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_lops_get_stage_info",
+        "description": "[FX MCP/lops] Stage summary: prim count, layers, default prim, up axis, meters per unit.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "usd"
+  },
+  "lops.get_usd_attribute": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_lops_get_usd_attribute",
+        "description": "[FX MCP/lops] Read a USD attribute value at an optional time code.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "prim_path": {
+              "type": "string"
+            },
+            "attr_name": {
+              "type": "string"
+            },
+            "time": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "node_path",
+            "prim_path",
+            "attr_name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "usd"
+  },
+  "lops.get_usd_composition": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_lops_get_usd_composition",
+        "description": "[FX MCP/lops] Composition arcs for a prim (references, payloads, inherits, specializes, variants).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "prim_path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path",
+            "prim_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "usd"
+  },
+  "lops.get_usd_layers": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_lops_get_usd_layers",
+        "description": "[FX MCP/lops] List all layers used in the stage.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "usd"
+  },
+  "lops.get_usd_materials": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_lops_get_usd_materials",
+        "description": "[FX MCP/lops] List all materials with their bindings.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "usd"
+  },
+  "lops.get_usd_prim": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_lops_get_usd_prim",
+        "description": "[FX MCP/lops] Detailed prim info with type, kind, attributes, and children.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "prim_path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path",
+            "prim_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "usd"
+  },
+  "lops.get_usd_prim_stats": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_lops_get_usd_prim_stats",
+        "description": "[FX MCP/lops] Prim counts broken down by type under the given root.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "prim_path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "usd"
+  },
+  "lops.get_usd_variants": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_lops_get_usd_variants",
+        "description": "[FX MCP/lops] Variant sets and current selections for a prim.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "prim_path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path",
+            "prim_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "usd"
+  },
+  "lops.inspect_usd_layer": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_lops_inspect_usd_layer",
+        "description": "[FX MCP/lops] Inspect a specific layer in the stage by index.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "layer_index": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "usd"
+  },
+  "lops.list_lights": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_lops_list_lights",
+        "description": "[FX MCP/lops] List all USD lights on a LOP stage.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the LOP node."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "usd"
+  },
+  "lops.list_usd_prims": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_lops_list_usd_prims",
+        "description": "[FX MCP/lops] List prims filtered by type/kind/purpose with optional depth limit.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "root_path": {
+              "type": "string"
+            },
+            "prim_type": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "depth": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "usd"
+  },
+  "lops.set_light_properties": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_lops_set_light_properties",
+        "description": "[FX MCP/lops] Set properties on a USD light prim via an inline Python LOP.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the LOP node to connect after."
+            },
+            "prim_path": {
+              "type": "string",
+              "description": "USD prim path of the light."
+            },
+            "properties": {
+              "type": "object",
+              "description": "Dict of property name -> value to set."
+            }
+          },
+          "required": [
+            "node_path",
+            "prim_path",
+            "properties"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "usd"
+  },
+  "lops.set_usd_attribute": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_lops_set_usd_attribute",
+        "description": "[FX MCP/lops] Set a USD attribute via an inline Python LOP.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "prim_path": {
+              "type": "string"
+            },
+            "attr_name": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path",
+            "prim_path",
+            "attr_name",
+            "value"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "usd"
+  },
+  "materials.assign_material": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_materials_assign_material",
+        "description": "[FX MCP/materials] Assign a material to a geometry node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "geo_path": {
+              "type": "string",
+              "description": "Path to the geometry (Object-level) node."
+            },
+            "material_path": {
+              "type": "string",
+              "description": "Path to the material node to assign."
+            }
+          },
+          "required": [
+            "geo_path",
+            "material_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "materials"
+  },
+  "materials.create_material_network": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_materials_create_material_network",
+        "description": "[FX MCP/materials] Create a new material network in /mat.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name for the new material node."
+            },
+            "shader_type": {
+              "type": "string",
+              "description": "Type of shader to create. \"principled\" creates a"
+            },
+            "params": {
+              "type": "object",
+              "description": "Optional dict of parameter name -> value to set."
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "materials"
+  },
+  "materials.get_material_info": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_materials_get_material_info",
+        "description": "[FX MCP/materials] Get detailed information about a material node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Absolute path to the material node."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "materials"
+  },
+  "materials.list_material_types": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_materials_list_material_types",
+        "description": "[FX MCP/materials] List available VOP/material node types.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "filter": {
+              "type": "string",
+              "description": "Optional substring to filter type names by."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "materials"
+  },
+  "materials.list_materials": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_materials_list_materials",
+        "description": "[FX MCP/materials] List all material nodes under the given root path.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "root_path": {
+              "type": "string",
+              "description": "Root path to search for materials (default: \"/mat\")."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "materials"
+  },
+  "nodes.connect_nodes": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_nodes_connect_nodes",
+        "description": "[FX MCP/nodes] Wire two nodes together.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "source_path": {
+              "type": "string",
+              "description": "Path to the source (upstream) node."
+            },
+            "dest_path": {
+              "type": "string",
+              "description": "Path to the destination (downstream) node."
+            },
+            "output_index": {
+              "type": "integer",
+              "description": "Output connector index on the source node."
+            },
+            "input_index": {
+              "type": "integer",
+              "description": "Input connector index on the destination node."
+            }
+          },
+          "required": [
+            "source_path",
+            "dest_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "nodes"
+  },
+  "nodes.connect_nodes_batch": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_nodes_connect_nodes_batch",
+        "description": "[FX MCP/nodes] Wire multiple node pairs in a single call.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "connections": {
+              "type": "array",
+              "items": {},
+              "description": "List of dicts, each with keys: source_path, dest_path, output_index (default 0), input_index (default 0)."
+            }
+          },
+          "required": [
+            "connections"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "nodes"
+  },
+  "nodes.copy_node": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_nodes_copy_node",
+        "description": "[FX MCP/nodes] Copy a node, optionally into a different parent network.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the source node."
+            },
+            "dest_parent": {
+              "type": "string",
+              "description": "Destination parent path. If None, copies within the same parent."
+            },
+            "new_name": {
+              "type": "string",
+              "description": "Optional name for the copied node."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "nodes"
+  },
+  "nodes.create_node": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_nodes_create_node",
+        "description": "[FX MCP/nodes] Create a new node inside the given parent network.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "parent_path": {
+              "type": "string",
+              "description": "Path to the parent network (e.g. \"/obj\" or \"/obj/geo1\")."
+            },
+            "node_type": {
+              "type": "string",
+              "description": "Type name (e.g. \"geo\", \"box\", \"grid\", \"merge\")."
+            },
+            "name": {
+              "type": "string",
+              "description": "Optional explicit node name."
+            },
+            "position": {
+              "type": "array",
+              "items": {},
+              "description": "Optional [x, y] position in the network editor."
+            }
+          },
+          "required": [
+            "parent_path",
+            "node_type"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "nodes"
+  },
+  "nodes.delete_node": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_nodes_delete_node",
+        "description": "[FX MCP/nodes] Delete a node from the scene.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Absolute path to the node to delete."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "nodes"
+  },
+  "nodes.disconnect_node": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_nodes_disconnect_node",
+        "description": "[FX MCP/nodes] Disconnect one or all inputs of a node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the node whose inputs to disconnect."
+            },
+            "input_index": {
+              "type": "integer",
+              "description": "Specific input index to disconnect. Ignored if disconnect_all is True."
+            },
+            "disconnect_all": {
+              "type": "boolean",
+              "description": "If True, disconnect all inputs."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "nodes"
+  },
+  "nodes.find_nodes": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_nodes_find_nodes",
+        "description": "[FX MCP/nodes] Search for nodes by name pattern and/or type.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "Glob pattern for node names (e.g. \"box*\", \"*merge*\")."
+            },
+            "node_type": {
+              "type": "string",
+              "description": "Filter by node type name (e.g. \"box\", \"null\")."
+            },
+            "context": {
+              "type": "string",
+              "description": "Filter by node category name (e.g. \"Sop\", \"Object\")."
+            },
+            "inside": {
+              "type": "string",
+              "description": "Root path to search within."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "nodes"
+  },
+  "nodes.get_node_info": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_nodes_get_node_info",
+        "description": "[FX MCP/nodes] Return comprehensive information about a node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Absolute path to the node."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "nodes"
+  },
+  "nodes.layout_children": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_nodes_layout_children",
+        "description": "[FX MCP/nodes] Auto-layout the children of a network node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "parent_path": {
+              "type": "string",
+              "description": "Path to the parent network."
+            },
+            "spacing": {
+              "type": "number",
+              "description": "Optional spacing multiplier between nodes."
+            }
+          },
+          "required": [
+            "parent_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "nodes"
+  },
+  "nodes.list_children": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_nodes_list_children",
+        "description": "[FX MCP/nodes] List children of a network node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "parent_path": {
+              "type": "string",
+              "description": "Path to the parent network."
+            },
+            "recursive": {
+              "type": "boolean",
+              "description": "If True, list all descendants, not just direct children."
+            },
+            "filter_type": {
+              "type": "string",
+              "description": "Optional node type name to filter by (e.g. \"box\", \"merge\")."
+            }
+          },
+          "required": [
+            "parent_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "nodes"
+  },
+  "nodes.list_node_types": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_nodes_list_node_types",
+        "description": "[FX MCP/nodes] List available node types in a given context category.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "context": {
+              "type": "string",
+              "description": "Category name, e.g. \"Sop\", \"Lop\", \"Dop\", \"Top\", \"Cop2\", \"Object\", \"Driver\"."
+            },
+            "filter": {
+              "type": "string",
+              "description": "Optional substring to filter by type name or label (case-insensitive). Use this to avoid dumping all types."
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Maximum number of types to return (default 200)."
+            }
+          },
+          "required": [
+            "context"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "nodes"
+  },
+  "nodes.move_node": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_nodes_move_node",
+        "description": "[FX MCP/nodes] Move a node to a different parent network.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the node to move."
+            },
+            "dest_parent": {
+              "type": "string",
+              "description": "Destination parent network path."
+            }
+          },
+          "required": [
+            "node_path",
+            "dest_parent"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "nodes"
+  },
+  "nodes.rename_node": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_nodes_rename_node",
+        "description": "[FX MCP/nodes] Rename an existing node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Absolute path to the node."
+            },
+            "new_name": {
+              "type": "string",
+              "description": "Desired new name for the node."
+            }
+          },
+          "required": [
+            "node_path",
+            "new_name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "nodes"
+  },
+  "nodes.reorder_inputs": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_nodes_reorder_inputs",
+        "description": "[FX MCP/nodes] Reorder the input connections of a node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the node."
+            },
+            "new_order": {
+              "type": "array",
+              "items": {},
+              "description": "List of integers representing the new input ordering. For example, [1, 0] swaps the first two inputs."
+            }
+          },
+          "required": [
+            "node_path",
+            "new_order"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "nodes"
+  },
+  "nodes.set_node_color": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_nodes_set_node_color",
+        "description": "[FX MCP/nodes] Set the color of a node in the network editor.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the node."
+            },
+            "r": {
+              "type": "number",
+              "description": "Red component (0.0 to 1.0)."
+            },
+            "g": {
+              "type": "number",
+              "description": "Green component (0.0 to 1.0)."
+            },
+            "b": {
+              "type": "number",
+              "description": "Blue component (0.0 to 1.0)."
+            }
+          },
+          "required": [
+            "node_path",
+            "r",
+            "g",
+            "b"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "nodes"
+  },
+  "nodes.set_node_flags": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_nodes_set_node_flags",
+        "description": "[FX MCP/nodes] Set one or more flags on a node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the node."
+            },
+            "display": {
+              "type": "boolean",
+              "description": "Set the display flag."
+            },
+            "render": {
+              "type": "boolean",
+              "description": "Set the render flag."
+            },
+            "bypass": {
+              "type": "boolean",
+              "description": "Set the bypass flag."
+            },
+            "template": {
+              "type": "boolean",
+              "description": "Set the template flag."
+            },
+            "lock": {
+              "type": "boolean",
+              "description": "Set the hard-lock flag."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "nodes"
+  },
+  "nodes.set_node_position": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_nodes_set_node_position",
+        "description": "[FX MCP/nodes] Set the position of a node in the network editor.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the node."
+            },
+            "x": {
+              "type": "number",
+              "description": "Horizontal position."
+            },
+            "y": {
+              "type": "number",
+              "description": "Vertical position."
+            }
+          },
+          "required": [
+            "node_path",
+            "x",
+            "y"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "nodes"
+  },
+  "parameters.create_spare_parameter": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_parameters_create_spare_parameter",
+        "description": "[FX MCP/parameters] Add a custom spare parameter to a node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "parm_name": {
+              "type": "string"
+            },
+            "parm_type": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "default_value": {
+              "type": "string"
+            },
+            "min_val": {
+              "type": "number"
+            },
+            "max_val": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "node_path",
+            "parm_name",
+            "parm_type",
+            "label"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "parameters"
+  },
+  "parameters.create_spare_parameters": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_parameters_create_spare_parameters",
+        "description": "[FX MCP/parameters] Batch-create spare parameters, optionally inside a folder/tab.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "parameters": {
+              "type": "array",
+              "items": {}
+            },
+            "folder_name": {
+              "type": "string"
+            },
+            "folder_type": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path",
+            "parameters"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "parameters"
+  },
+  "parameters.get_expression": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_parameters_get_expression",
+        "description": "[FX MCP/parameters] Get the current expression on a parameter.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "parm_name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path",
+            "parm_name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "parameters"
+  },
+  "parameters.get_parameter": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_parameters_get_parameter",
+        "description": "[FX MCP/parameters] Get the current value, expression, keyframe info, and metadata of a parameter.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "parm_name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path",
+            "parm_name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "parameters"
+  },
+  "parameters.get_parameter_schema": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_parameters_get_parameter_schema",
+        "description": "[FX MCP/parameters] Get full parameter template info.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "parm_name": {
+              "type": "string"
+            },
+            "filter": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "parameters"
+  },
+  "parameters.get_parameters": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_parameters_get_parameters",
+        "description": "[FX MCP/parameters] Current values for every parameter matching any of several patterns.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Node to read."
+            },
+            "patterns": {
+              "type": "array",
+              "items": {},
+              "description": "Substrings matched against parameter name and label. Omit for every non-hidden parameter, up to the cap."
+            },
+            "include_defaults": {
+              "type": "boolean",
+              "description": "Also report whether each value is still the default."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "parameters"
+  },
+  "parameters.link_parameters": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_parameters_link_parameters",
+        "description": "[FX MCP/parameters] Create a channel reference from destination parameter to source parameter.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "source_path": {
+              "type": "string"
+            },
+            "source_parm": {
+              "type": "string"
+            },
+            "dest_path": {
+              "type": "string"
+            },
+            "dest_parm": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "source_path",
+            "source_parm",
+            "dest_path",
+            "dest_parm"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "parameters"
+  },
+  "parameters.lock_parameter": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_parameters_lock_parameter",
+        "description": "[FX MCP/parameters] Lock or unlock a parameter.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "parm_name": {
+              "type": "string"
+            },
+            "locked": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "node_path",
+            "parm_name",
+            "locked"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "parameters"
+  },
+  "parameters.revert_parameter": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_parameters_revert_parameter",
+        "description": "[FX MCP/parameters] Revert a parameter to its default value.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "parm_name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path",
+            "parm_name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "parameters"
+  },
+  "parameters.set_expression": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_parameters_set_expression",
+        "description": "[FX MCP/parameters] Set an expression on a parameter.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "parm_name": {
+              "type": "string"
+            },
+            "expression": {
+              "type": "string"
+            },
+            "language": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path",
+            "parm_name",
+            "expression"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "parameters"
+  },
+  "parameters.set_parameter": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_parameters_set_parameter",
+        "description": "[FX MCP/parameters] Set a parameter value, auto-detecting the appropriate type.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "parm_name": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_path",
+            "parm_name",
+            "value"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "parameters"
+  },
+  "parameters.set_parameters": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_parameters_set_parameters",
+        "description": "[FX MCP/parameters] Batch-set multiple parameters on a single node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string"
+            },
+            "params": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "node_path",
+            "params"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "parameters"
+  },
+  "rendering.create_render_node": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_rendering_create_render_node",
+        "description": "[FX MCP/rendering] Create a new render (ROP) node in /out.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "renderer": {
+              "type": "string",
+              "description": "Renderer type. Supported values include: 'karma' (USD Karma), 'opengl' (OpenGL), 'ifd' (Mantra), 'rop_geometry' (Geometry ROP), 'fetch', 'merge', etc."
+            },
+            "name": {
+              "type": "string",
+              "description": "Optional node name. Auto-generated if not provided."
+            },
+            "camera": {
+              "type": "string",
+              "description": "Optional camera path to assign."
+            },
+            "output_path": {
+              "type": "string",
+              "description": "Optional output image/file path."
+            }
+          },
+          "required": [
+            "renderer"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "rendering"
+  },
+  "rendering.get_render_progress": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_rendering_get_render_progress",
+        "description": "[FX MCP/rendering] Check the render status / progress of a ROP node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the ROP/Driver node."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "rendering"
+  },
+  "rendering.get_render_settings": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_rendering_get_render_settings",
+        "description": "[FX MCP/rendering] Get key render settings from a ROP node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the ROP/Driver node."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "rendering"
+  },
+  "rendering.list_render_nodes": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_rendering_list_render_nodes",
+        "description": "[FX MCP/rendering] List all ROP (render) nodes in /out and embedded in other networks.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "rendering"
+  },
+  "rendering.render_node_network": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_rendering_render_node_network",
+        "description": "[FX MCP/rendering] Take a screenshot of the network editor showing a specific node's network.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the node whose network to capture."
+            },
+            "output_path": {
+              "type": "string",
+              "description": "Destination image path."
+            }
+          },
+          "required": [
+            "node_path",
+            "output_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "rendering"
+  },
+  "rendering.render_quad_view": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_rendering_render_quad_view",
+        "description": "[FX MCP/rendering] Capture all four viewport panes (quad view) to an image file.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "output_path": {
+              "type": "string",
+              "description": "Destination image path."
+            },
+            "resolution": {
+              "type": "array",
+              "items": {},
+              "description": "Optional [width, height] override."
+            }
+          },
+          "required": [
+            "output_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "rendering"
+  },
+  "rendering.render_viewport": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_rendering_render_viewport",
+        "description": "[FX MCP/rendering] Capture the current viewport to an image file.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "output_path": {
+              "type": "string",
+              "description": "Destination image path (e.g. .png, .jpg, .exr)."
+            },
+            "resolution": {
+              "type": "array",
+              "items": {},
+              "description": "Optional [width, height] override."
+            },
+            "camera": {
+              "type": "string",
+              "description": "Optional camera node path to look through before capture."
+            }
+          },
+          "required": [
+            "output_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "rendering"
+  },
+  "rendering.set_render_settings": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_rendering_set_render_settings",
+        "description": "[FX MCP/rendering] Set render parameters on a ROP node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the ROP/Driver node."
+            },
+            "settings": {
+              "type": "object",
+              "description": "Dict of parameter_name -> value pairs to set."
+            }
+          },
+          "required": [
+            "node_path",
+            "settings"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "rendering"
+  },
+  "rendering.start_render": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_rendering_start_render",
+        "description": "[FX MCP/rendering] Begin rendering a ROP node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to any node that renders or writes: a /out ROP, a LOP usdrender_rop, a SOP ROP Geometry or File Cache, and so on."
+            },
+            "frame_range": {
+              "type": "array",
+              "items": {},
+              "description": "Optional [start, end] or [start, end, increment]. If not provided, the node's own frame range settings are used."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "rendering"
+  },
+  "scene.export_file": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_scene_export_file",
+        "description": "[FX MCP/scene] Export a node's output to a file on disk.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the node whose output to export."
+            },
+            "file_path": {
+              "type": "string",
+              "description": "Destination file path."
+            },
+            "frame_range": {
+              "type": "array",
+              "items": {},
+              "description": "Optional [start, end] or [start, end, step] frame range."
+            }
+          },
+          "required": [
+            "node_path",
+            "file_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "scene"
+  },
+  "scene.get_context_info": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_scene_get_context_info",
+        "description": "[FX MCP/scene] Return detailed information about a network context.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "context": {
+              "type": "string",
+              "description": "Context path (e.g. \"/obj\", \"/stage\", \"/out\", \"/shop\", \"/ch\", \"/img\")."
+            }
+          },
+          "required": [
+            "context"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "scene"
+  },
+  "scene.get_scene_info": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_scene_get_scene_info",
+        "description": "[FX MCP/scene] Return comprehensive information about the current Houdini scene.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "scene"
+  },
+  "scene.import_file": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_scene_import_file",
+        "description": "[FX MCP/scene] Import a geometry, USD, or Alembic file into the scene.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "file_path": {
+              "type": "string",
+              "description": "Path to the file to import."
+            },
+            "parent_path": {
+              "type": "string",
+              "description": "Network path under which to create the import node."
+            },
+            "node_name": {
+              "type": "string",
+              "description": "Optional explicit node name."
+            }
+          },
+          "required": [
+            "file_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "scene"
+  },
+  "scene.load_scene": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_scene_load_scene",
+        "description": "[FX MCP/scene] Open or merge a hip file.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "file_path": {
+              "type": "string",
+              "description": "Path to the .hip/.hipnc/.hiplc file."
+            },
+            "merge": {
+              "type": "boolean",
+              "description": "If True, merge nodes into the current scene instead of replacing it."
+            }
+          },
+          "required": [
+            "file_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "scene"
+  },
+  "scene.new_scene": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_scene_new_scene",
+        "description": "[FX MCP/scene] Create a new empty Houdini scene.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "save_current": {
+              "type": "boolean",
+              "description": "If True, save the current scene before clearing."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "scene"
+  },
+  "scene.save_scene": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_scene_save_scene",
+        "description": "[FX MCP/scene] Save the current Houdini scene.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "file_path": {
+              "type": "string",
+              "description": "Destination path. If None, saves to the current hip path."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "scene"
+  },
+  "shelf.get_shelf_tool_script": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_shelf_get_shelf_tool_script",
+        "description": "[FX MCP/shelf] The script a shelf tool runs, plus its help.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "tool_name": {
+              "type": "string",
+              "description": "Internal tool name, as returned by list_shelf_tools."
+            }
+          },
+          "required": [
+            "tool_name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "shelf"
+  },
+  "shelf.list_shelf_tools": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_shelf_list_shelf_tools",
+        "description": "[FX MCP/shelf] Find shelf tools by name, label or keyword.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "filter": {
+              "type": "string",
+              "description": "Substring matched against name, label and keywords."
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Maximum tools to return."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "shelf"
+  },
+  "shelf.run_shelf_tool": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_shelf_run_shelf_tool",
+        "description": "[FX MCP/shelf] Run a shelf tool, reporting what it created.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "tool_name": {
+              "type": "string",
+              "description": "Internal tool name, as returned by list_shelf_tools."
+            },
+            "kwargs": {
+              "type": "object",
+              "description": "Overrides merged into the synthetic kwargs dict the script reads. Pass e.g. {\"nodetypename\": \"...\"} when a tool expects it."
+            },
+            "parent_path": {
+              "type": "string",
+              "description": "An extra network to watch. /obj, /stage, /out, /mat and /img are always watched."
+            }
+          },
+          "required": [
+            "tool_name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "shelf"
+  },
+  "takes.create_take": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_takes_create_take",
+        "description": "[FX MCP/takes] Create a new take, optionally as a child of an existing take.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name for the new take."
+            },
+            "parent_name": {
+              "type": "string",
+              "description": "Optional name of the parent take."
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "takes"
+  },
+  "takes.get_current_take": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_takes_get_current_take",
+        "description": "[FX MCP/takes] Get the current take and list its overridden parameters.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "takes"
+  },
+  "takes.list_takes": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_takes_list_takes",
+        "description": "[FX MCP/takes] List all takes in the scene with their hierarchy.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "takes"
+  },
+  "takes.set_current_take": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_takes_set_current_take",
+        "description": "[FX MCP/takes] Set the current take by name.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name of the take to make current."
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "takes"
+  },
+  "tops.cancel_top_cook": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_tops_cancel_top_cook",
+        "description": "[FX MCP/tops] Cancel any active cooking on a TOP network.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to a TOP node or TOP network."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "pdg"
+  },
+  "tops.cook_top_node": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_tops_cook_top_node",
+        "description": "[FX MCP/tops] Cook a TOP node to execute its work items.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the TOP node to cook."
+            },
+            "block": {
+              "type": "boolean",
+              "description": "If True, wait for cooking to complete before returning."
+            },
+            "generate_only": {
+              "type": "boolean",
+              "description": "If True, only generate work items without cooking."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "pdg"
+  },
+  "tops.dirty_work_items": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_tops_dirty_work_items",
+        "description": "[FX MCP/tops] Dirty (invalidate) work items on a TOP node so they can be regenerated.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the TOP node."
+            },
+            "remove_outputs": {
+              "type": "boolean",
+              "description": "If True, also remove output files from disk."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "pdg"
+  },
+  "tops.generate_static_items": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_tops_generate_static_items",
+        "description": "[FX MCP/tops] Generate static work items on a TOP node without cooking them.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the TOP node."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "pdg"
+  },
+  "tops.get_pdg_graph": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_tops_get_pdg_graph",
+        "description": "[FX MCP/tops] Return the PDG dependency graph structure for a TOP network.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to a TOP network node or TOP node inside one."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "pdg"
+  },
+  "tops.get_top_network_info": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_tops_get_top_network_info",
+        "description": "[FX MCP/tops] Return an overview of a TOP network.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to a TOP network node (topnet) or a TOP node inside one."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "pdg"
+  },
+  "tops.get_top_scheduler_info": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_tops_get_top_scheduler_info",
+        "description": "[FX MCP/tops] Return information about a TOP scheduler node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to a TOP scheduler node or a TOP network (returns info about its default scheduler)."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "pdg"
+  },
+  "tops.get_work_item_info": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_tops_get_work_item_info",
+        "description": "[FX MCP/tops] Return detailed information about a specific work item.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the TOP node."
+            },
+            "work_item_index": {
+              "type": "integer",
+              "description": "Index of the work item within the node."
+            }
+          },
+          "required": [
+            "node_path",
+            "work_item_index"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "pdg"
+  },
+  "tops.get_work_item_states": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_tops_get_work_item_states",
+        "description": "[FX MCP/tops] Return the count of work items in each state for a TOP node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the TOP node."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "pdg"
+  },
+  "tops.pause_top_cook": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_tops_pause_top_cook",
+        "description": "[FX MCP/tops] Pause cooking on a TOP network.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to a TOP node or TOP network."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "pdg"
+  },
+  "vex.create_vex_expression": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_vex_create_vex_expression",
+        "description": "[FX MCP/vex] Set a VEX expression on a parameter.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the node."
+            },
+            "parm_name": {
+              "type": "string",
+              "description": "Name of the parameter."
+            },
+            "vex_code": {
+              "type": "string",
+              "description": "The VEX expression code."
+            }
+          },
+          "required": [
+            "node_path",
+            "parm_name",
+            "vex_code"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "vex"
+  },
+  "vex.create_wrangle": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_vex_create_wrangle",
+        "description": "[FX MCP/vex] Create an Attribute Wrangle node with VEX code.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "parent_path": {
+              "type": "string",
+              "description": "Path to the parent SOP network."
+            },
+            "vex_code": {
+              "type": "string",
+              "description": "The VEX snippet code to set."
+            },
+            "run_over": {
+              "type": "string",
+              "description": "What to run the wrangle over: \"Points\", \"Vertices\", \"Primitives\", \"Detail\", or \"Numbers\"."
+            },
+            "name": {
+              "type": "string",
+              "description": "Optional explicit name for the node."
+            }
+          },
+          "required": [
+            "parent_path",
+            "vex_code"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "vex"
+  },
+  "vex.get_wrangle_code": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_vex_get_wrangle_code",
+        "description": "[FX MCP/vex] Read the VEX code from an Attribute Wrangle node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the wrangle node."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "vex"
+  },
+  "vex.set_wrangle_code": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_vex_set_wrangle_code",
+        "description": "[FX MCP/vex] Set VEX code on an existing Attribute Wrangle node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the wrangle node."
+            },
+            "vex_code": {
+              "type": "string",
+              "description": "The VEX snippet code to set."
+            }
+          },
+          "required": [
+            "node_path",
+            "vex_code"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "vex"
+  },
+  "vex.validate_vex": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_vex_validate_vex",
+        "description": "[FX MCP/vex] Validate VEX code by cooking the node and checking for errors.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "node_path": {
+              "type": "string",
+              "description": "Path to the wrangle node to validate."
+            }
+          },
+          "required": [
+            "node_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "vex"
+  },
+  "viewport.capture_network_editor": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_viewport_capture_network_editor",
+        "description": "[FX MCP/viewport] Capture a screenshot of the network editor.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "output_path": {
+              "type": "string",
+              "description": "Destination image path."
+            },
+            "node_path": {
+              "type": "string",
+              "description": "Optional node path to navigate to before capture."
+            }
+          },
+          "required": [
+            "output_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "viewport"
+  },
+  "viewport.capture_screenshot": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_viewport_capture_screenshot",
+        "description": "[FX MCP/viewport] Capture a screenshot of a specific pane tab, or the active viewport.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "output_path": {
+              "type": "string",
+              "description": "Destination image path."
+            },
+            "pane_name": {
+              "type": "string",
+              "description": "Name of the pane tab to capture. If not provided, captures the first Scene Viewer found."
+            }
+          },
+          "required": [
+            "output_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "viewport"
+  },
+  "viewport.find_error_nodes": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_viewport_find_error_nodes",
+        "description": "[FX MCP/viewport] Find all nodes with errors or warnings, recursively from a root path.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "root_path": {
+              "type": "string",
+              "description": "Root node path to start searching from. Defaults to '/'."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "viewport"
+  },
+  "viewport.frame_all": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_viewport_frame_all",
+        "description": "[FX MCP/viewport] Frame all geometry in the viewport (home all).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pane_name": {
+              "type": "string",
+              "description": "Optional pane tab name."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "viewport"
+  },
+  "viewport.frame_selection": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_viewport_frame_selection",
+        "description": "[FX MCP/viewport] Frame the current selection in the viewport.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pane_name": {
+              "type": "string",
+              "description": "Optional pane tab name."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "viewport"
+  },
+  "viewport.get_viewport_info": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_viewport_get_viewport_info",
+        "description": "[FX MCP/viewport] Get current viewport settings including camera, display mode, and view transform.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pane_name": {
+              "type": "string",
+              "description": "Optional pane tab name. If None, uses the first Scene Viewer found."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "viewport"
+  },
+  "viewport.list_panes": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_viewport_list_panes",
+        "description": "[FX MCP/viewport] List all visible pane tabs, their types, and associated information.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": true,
+    "intent": "viewport"
+  },
+  "viewport.log_status": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_viewport_log_status",
+        "description": "[FX MCP/viewport] Display a status message in Houdini's status bar.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string",
+              "description": "The status message to display."
+            },
+            "severity": {
+              "type": "string",
+              "description": "Severity level — \"message\" (default), \"important\", \"warning\", or \"error\"."
+            }
+          },
+          "required": [
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "viewport"
+  },
+  "viewport.set_current_network": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_viewport_set_current_network",
+        "description": "[FX MCP/viewport] Navigate the network editor to a specific network path.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "network_path": {
+              "type": "string",
+              "description": "Path to the network to navigate to (e.g. '/obj/geo1')."
+            }
+          },
+          "required": [
+            "network_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "viewport"
+  },
+  "viewport.set_viewer_context": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_viewport_set_viewer_context",
+        "description": "[FX MCP/viewport] Point the Scene Viewer at a network, and optionally a node within it.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "network_path": {
+              "type": "string",
+              "description": "Network for the viewer to display, e.g. \"/stage\"."
+            },
+            "current_node": {
+              "type": "string",
+              "description": "Optional node inside it to make current, which is what selects the stage a Solaris viewport shows."
+            },
+            "pane_name": {
+              "type": "string",
+              "description": "Optional pane tab name."
+            }
+          },
+          "required": [
+            "network_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "viewport"
+  },
+  "viewport.set_viewport_camera": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_viewport_set_viewport_camera",
+        "description": "[FX MCP/viewport] Set the viewport to look through a specific camera.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "camera_path": {
+              "type": "string",
+              "description": "Path to the camera node (e.g. '/obj/cam1')."
+            },
+            "pane_name": {
+              "type": "string",
+              "description": "Optional pane tab name."
+            }
+          },
+          "required": [
+            "camera_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "viewport"
+  },
+  "viewport.set_viewport_direction": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_viewport_set_viewport_direction",
+        "description": "[FX MCP/viewport] Set the viewport to a standard viewing direction.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "direction": {
+              "type": "string",
+              "description": "One of 'front', 'back', 'top', 'bottom', 'left', 'right', 'perspective'."
+            },
+            "pane_name": {
+              "type": "string",
+              "description": "Optional pane tab name."
+            }
+          },
+          "required": [
+            "direction"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "viewport"
+  },
+  "viewport.set_viewport_display": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_viewport_set_viewport_display",
+        "description": "[FX MCP/viewport] Set the viewport display/shading mode.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "display_mode": {
+              "type": "string",
+              "description": "One of 'wireframe', 'shaded', 'smooth', 'smooth_wire', 'hidden_line', 'flat', 'flat_wire', 'point'."
+            },
+            "pane_name": {
+              "type": "string",
+              "description": "Optional pane tab name."
+            }
+          },
+          "required": [
+            "display_mode"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "viewport"
+  },
+  "viewport.set_viewport_renderer": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_viewport_set_viewport_renderer",
+        "description": "[FX MCP/viewport] Set the viewport's Hydra rendering delegate.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "renderer": {
+              "type": "string",
+              "description": "Renderer name — e.g. \"GL\", \"Storm\", \"Karma CPU\", \"Karma XPU\", \"Houdini GL\". Case-insensitive partial match."
+            },
+            "pane_name": {
+              "type": "string",
+              "description": "Optional pane tab name."
+            }
+          },
+          "required": [
+            "renderer"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "viewport"
+  },
+  "workflow.assign_material": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_workflow_assign_material",
+        "description": "[FX MCP/workflow] Assign a material to a geometry node.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "geo_path": {
+              "type": "string",
+              "description": "Path to the geometry Object node (e.g. \"/obj/geo1\")."
+            },
+            "material_path": {
+              "type": "string",
+              "description": "Path to the material to assign (e.g. \"/mat/material1\")."
+            }
+          },
+          "required": [
+            "geo_path",
+            "material_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "simulation"
+  },
+  "workflow.build_sop_chain": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_workflow_build_sop_chain",
+        "description": "[FX MCP/workflow] Build a sequential chain of SOPs inside a network.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "parent_path": {
+              "type": "string",
+              "description": "Path to the parent SOP network."
+            },
+            "steps": {
+              "type": "array",
+              "items": {},
+              "description": "List of step dicts, each with keys: - \"type\" (str): Node type to create (required). - \"name\" (str): Optional node name. - \"params\" (dict): Optional parameter values to set."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "simulation"
+  },
+  "workflow.create_material": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_workflow_create_material",
+        "description": "[FX MCP/workflow] Create a material/shader in the /mat context.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name for the material subnet/node."
+            },
+            "mat_type": {
+              "type": "string",
+              "description": "Material type -- \"principled\" or \"materialx\"."
+            },
+            "base_color": {
+              "type": "array",
+              "items": {},
+              "description": "Optional [R, G, B] base color (0.0-1.0 each)."
+            },
+            "roughness": {
+              "type": "number",
+              "description": "Surface roughness (0.0 = mirror, 1.0 = diffuse)."
+            },
+            "metallic": {
+              "type": "number",
+              "description": "Metallic factor (0.0 = dielectric, 1.0 = metal)."
+            },
+            "opacity": {
+              "type": "number",
+              "description": "Opacity (0.0 = transparent, 1.0 = opaque)."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "simulation"
+  },
+  "workflow.setup_flip_sim": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_workflow_setup_flip_sim",
+        "description": "[FX MCP/workflow] Build a complete FLIP fluid simulation network.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "source_geo": {
+              "type": "string",
+              "description": "Path to the source geometry SOP."
+            },
+            "domain": {
+              "type": "string",
+              "description": "Domain shape. Only \"box\" is implemented; anything else is rejected rather than silently ignored."
+            },
+            "particle_sep": {
+              "type": "number",
+              "description": "Particle separation distance for the FLIP sim."
+            },
+            "name": {
+              "type": "string",
+              "description": "Name for the top-level geometry node."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "simulation"
+  },
+  "workflow.setup_pyro_sim": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_workflow_setup_pyro_sim",
+        "description": "[FX MCP/workflow] Build a complete Pyro smoke/fire simulation network.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "source_geo": {
+              "type": "string",
+              "description": "Path to the source geometry SOP to drive the simulation."
+            },
+            "container": {
+              "type": "string",
+              "description": "Container shape. Only \"box\" is implemented; anything else is rejected rather than silently ignored."
+            },
+            "res_scale": {
+              "type": "number",
+              "description": "Resolution scale multiplier for the simulation."
+            },
+            "substeps": {
+              "type": "integer",
+              "description": "Number of DOP substeps or solver substeps."
+            },
+            "name": {
+              "type": "string",
+              "description": "Name for the top-level geometry node."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "simulation"
+  },
+  "workflow.setup_rbd_sim": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_workflow_setup_rbd_sim",
+        "description": "[FX MCP/workflow] Build a complete RBD (rigid body dynamics) simulation network.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "geo_path": {
+              "type": "string",
+              "description": "Path to the source geometry object."
+            },
+            "ground": {
+              "type": "boolean",
+              "description": "If True, add a ground plane to the simulation."
+            },
+            "pieces_type": {
+              "type": "string",
+              "description": "Fracture method -- \"voronoi\" adds a Voronoi Fracture SOP."
+            },
+            "name": {
+              "type": "string",
+              "description": "Name for the top-level geometry node."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "simulation"
+  },
+  "workflow.setup_render": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_workflow_setup_render",
+        "description": "[FX MCP/workflow] Set up a complete render configuration.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "renderer": {
+              "type": "string",
+              "description": "Renderer to use -- \"karma\" or \"mantra\"."
+            },
+            "camera": {
+              "type": "string",
+              "description": "Path to an existing camera. If None, creates one in /obj."
+            },
+            "output_path": {
+              "type": "string",
+              "description": "Output image file path (supports Houdini variables)."
+            },
+            "resolution": {
+              "type": "array",
+              "items": {},
+              "description": "[width, height] resolution (default: [1920, 1080])."
+            },
+            "samples": {
+              "type": "integer",
+              "description": "Number of render samples."
+            },
+            "name": {
+              "type": "string",
+              "description": "Name for the ROP node."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "simulation"
+  },
+  "workflow.setup_vellum_sim": {
+    "schema": {
+      "type": "function",
+      "function": {
+        "name": "fx_workflow_setup_vellum_sim",
+        "description": "[FX MCP/workflow] Build a complete Vellum simulation network.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "geo_path": {
+              "type": "string",
+              "description": "Path to the source geometry object."
+            },
+            "sim_type": {
+              "type": "string",
+              "description": "Simulation type -- \"cloth\", \"hair\", \"grain\", or \"softbody\"."
+            },
+            "substeps": {
+              "type": "integer",
+              "description": "Number of solver substeps."
+            },
+            "name": {
+              "type": "string",
+              "description": "Name for the top-level geometry node."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    "readonly": false,
+    "intent": "simulation"
+  }
+}

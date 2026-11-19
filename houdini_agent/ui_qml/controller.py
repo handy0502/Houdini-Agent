@@ -3639,6 +3639,8 @@ class Controller(QObject):
                 supports_vision=supports_vision,
                 tools=tools, max_iter=max_iter,
                 images=images, rag=True, memory=self._memory_enabled,
+                tool_mode=({"Ask": "ask", "Plan": "plan_" + self._plan_phase}
+                           .get(mode, "agent")),
             )
             if isinstance(result, dict) and not result.get("ok", True):
                 err = str(result.get("error") or result.get("final_content") or "AI request failed")

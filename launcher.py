@@ -18,6 +18,17 @@ if os.path.exists(_LIB_DIR):
 
 # ============================================================
 
+_DLL_DIRECTORY_HANDLES = []
+
+
+def _prepare_houdini_qt_runtime():
+    """Expose Houdini's bundled Qt DLLs to its regular python.exe on Windows."""
+    if os.name != "nt" or not hasattr(os, "add_dll_directory"):
+        return
+    bin_dir = os.path.join(os.environ.get("HFS", ""), "bin")
+    if os.path.isdir(bin_dir):
+        _DLL_DIRECTORY_HANDLES.append(os.add_dll_directory(bin_dir))
+
 def detect_dcc():
     """检测当前运行的 DCC 软件"""
     try:
@@ -83,6 +94,7 @@ def launch_external_agent():
     if tool_path not in sys.path:
         sys.path.insert(0, tool_path)
     try:
+        _prepare_houdini_qt_runtime()
         from houdini_agent.ui_qml import external_app
         return external_app.main()
     except Exception as e:

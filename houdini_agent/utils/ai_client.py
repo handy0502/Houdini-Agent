@@ -927,6 +927,11 @@ try:
     _reg = _get_reg()
     if not _reg.initialized:
         _reg.register_core_tools(HOUDINI_TOOLS)
+    # Supplement Agent-native tools with FXHoudini-MCP's broader command
+    # domains. The static catalog is also available in the standalone app;
+    # handlers are loaded lazily only when a command executes inside Houdini.
+    from .mcp.fx_compat import register_agent_tools as _register_fx_tools
+    _register_fx_tools(_reg)
 except Exception as _e:
     print(f"[AIClient] ToolRegistry 注册失败 (非致命): {_e}")
 
