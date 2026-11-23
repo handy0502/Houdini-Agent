@@ -19,7 +19,7 @@ Item {
         width: parent.width
         height: inner.implicitHeight
         color: "transparent"
-        border.color: Theme.border
+        border.color: Theme.borderSoft
         border.width: 1
         radius: Theme.radSm
 
@@ -35,15 +35,15 @@ Item {
                     anchors.left: parent.left; anchors.leftMargin: 13
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 8
-                    Text { text: "◆"; color: Theme.accent; font.pixelSize: Theme.fSm; anchors.verticalCenter: parent.verticalCenter }
+                    AppIcon { name: "settings"; color: Theme.textMute; anchors.verticalCenter: parent.verticalCenter }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         width: Math.max(80, head.width - 58)
                         elide: Text.ElideRight
-                        text: ((eb.block.label || "Executing…") + (eb.shells.length > 0 ? (" · " + eb.shells.length + " shell") : "")).toUpperCase()
+                        text: (eb.block.label || "Executing…") + (eb.shells.length > 0 ? (" · " + eb.shells.length + " shell") : "")
                         color: Theme.textDim
-                        font.family: Theme.fontMono
-                        font.pixelSize: Theme.fMicro
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fSm
                         font.letterSpacing: Theme.trackLabel
                     }
                 }

@@ -10,10 +10,11 @@ Popup {
     parent: Overlay.overlay
     anchors.centerIn: parent
     width: 300
-    padding: 18
+    padding: Theme.panelPadding
     modal: true
+    focus: true
     closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape
-    background: Rectangle { color: Theme.bg; border.color: Theme.border; border.width: 1; radius: Theme.radSm }
+    background: Rectangle { color: Theme.panel; border.color: Theme.border; border.width: 1; radius: Theme.radMd }
 
     contentItem: ColumnLayout {
         spacing: 16

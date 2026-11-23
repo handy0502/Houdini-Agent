@@ -3,13 +3,35 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import HAgent
 
-// Root of the Houdini Agent panel (Mono Editorial).
+// Responsive desktop shell with a draggable sidebar divider.
 // `controller` and `chatModel` are injected as context properties from Python.
 Rectangle {
     id: root
     color: Theme.bg
     implicitWidth: 420
     implicitHeight: 760
+    readonly property bool wide: width >= Theme.fs(880)
+    property bool sidebarExpanded: wide
+    onWideChanged: sidebarExpanded = wide
+    property real sidebarWidth: 236 // logical pixels; follows the UI font scale
+    readonly property real minimumNavigationWidth: Math.min(Theme.fs(160), width * 0.35)
+    readonly property real maximumNavigationWidth: Math.max(minimumNavigationWidth,
+        Math.min(Theme.fs(420), width - Math.min(Theme.fs(280), width * 0.6) - Theme.fs(6)))
+    readonly property real navigationWidth: Math.max(minimumNavigationWidth,
+        Math.min(Theme.fs(sidebarWidth), maximumNavigationWidth))
+    function resizeNavigation(value) {
+        if (value < Theme.fs(72)) {
+            sidebarExpanded = false
+            return
+        }
+        sidebarWidth = Math.max(minimumNavigationWidth, Math.min(value, maximumNavigationWidth)) / Theme.scale
+        sidebarExpanded = true
+    }
+    function toggleNavigation() {
+        sidebarExpanded = !sidebarExpanded
+    }
+    Shortcut { sequence: "Ctrl+N"; onActivated: if (controller) controller.newSession() }
+    Shortcut { sequence: "Ctrl+B"; onActivated: root.toggleNavigation() }
 
     // 外观状态（字号 / 主题 / 强调色 / 字体方案 / 密度）驱动 Theme 单例换肤
     function applyAppearance() {
@@ -28,60 +50,125 @@ Rectangle {
         function onAppearanceChanged() { root.applyAppearance() }
     }
 
-    ColumnLayout {
+    RowLayout {
         anchors.fill: parent
         spacing: 0
-
-        Header      { Layout.fillWidth: true }
-        SessionTabs { Layout.fillWidth: true }
-        ContextBar  { Layout.fillWidth: true }
-
-        ChatView {
-            Layout.fillWidth: true
+        Sidebar {
+            objectName: "dockedSidebar"
+            visible: root.sidebarExpanded
+            Layout.preferredWidth: root.navigationWidth
+            Layout.minimumWidth: root.navigationWidth
+            Layout.maximumWidth: root.navigationWidth
             Layout.fillHeight: true
+            onNavigated: if (!root.wide) root.sidebarExpanded = false
         }
-
-        // 更新提示横幅 —— 紧贴输入框上方（沿用 1.5 的“输入区域上方”位置）
-        // updateState: available（可一键更新）/ downloading（显示进度、禁止关闭）/ ready
         Rectangle {
-            Layout.fillWidth: true
-            visible: controller && controller.updateText.length > 0
-            implicitHeight: visible ? 34 : 0
-            color: Theme.accentSoft
-            Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Theme.accentLine }
-            Row {
-                anchors.fill: parent; anchors.leftMargin: 15; anchors.rightMargin: 12; spacing: 10
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - updateBtn.width - 56
-                    text: controller ? controller.updateText : ""
-                    color: Theme.accent; font.family: Theme.fontBody; font.pixelSize: Theme.fXs
-                    elide: Text.ElideRight
+            id: divider
+            objectName: "sidebarResizeHandle"
+            Layout.preferredWidth: Theme.fs(6)
+            Layout.fillHeight: true
+            color: dragArea.containsMouse || dragArea.pressed ? Theme.surface2 : "transparent"
+            activeFocusOnTab: true
+            Accessible.role: Accessible.Slider
+            Accessible.name: controller && controller.lang === "en" ? "Sidebar width" : "侧栏宽度"
+            Keys.onLeftPressed: root.resizeNavigation((root.sidebarExpanded ? root.navigationWidth : 0) - Theme.fs(24))
+            Keys.onRightPressed: root.resizeNavigation((root.sidebarExpanded ? root.navigationWidth : 0) + Theme.fs(80))
+            Rectangle {
+                anchors.centerIn: parent; width: 1; height: parent.height
+                color: dragArea.containsMouse || dragArea.pressed ? Theme.border : Theme.borderSoft
+            }
+            MouseArea {
+                id: dragArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.SplitHCursor
+                property real startX: 0
+                property real startWidth: 0
+                onPressed: function(mouse) {
+                    startX = mapToItem(root, mouse.x, mouse.y).x
+                    startWidth = root.sidebarExpanded ? root.navigationWidth : 0
                 }
-                Rectangle {
-                    id: updateBtn
-                    anchors.verticalCenter: parent.verticalCenter
-                    visible: controller && controller.updateState === "available"
-                    width: visible ? updateBtnLabel.implicitWidth + 22 : 0
-                    height: 22; radius: 11
-                    color: "transparent"; border.width: 1; border.color: Theme.accent
-                    Text { id: updateBtnLabel; anchors.centerIn: parent; text: "立即更新"
-                           color: Theme.accent; font.family: Theme.fontBody; font.pixelSize: Theme.fXs }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                        onClicked: if (controller) controller.startUpdate() }
+                onPositionChanged: function(mouse) {
+                    if (pressed) root.resizeNavigation(startWidth + mapToItem(root, mouse.x, mouse.y).x - startX)
                 }
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    visible: !controller || (controller.updateState !== "downloading"
-                                             && controller.updateState !== "installing")
-                    text: "✕"; color: Theme.textMute; font.pixelSize: Theme.fSm
-                    MouseArea { anchors.fill: parent; anchors.margins: -6; cursorShape: Qt.PointingHandCursor
-                        onClicked: if (controller) controller.dismissUpdate() }
-                }
+                onDoubleClicked: { root.sidebarWidth = 236; root.sidebarExpanded = true }
             }
         }
+        ColumnLayout {
+            id: conversationPane
+            objectName: "conversationPane"
+            Layout.fillWidth: true
+            Layout.minimumWidth: 0
+            Layout.fillHeight: true
+            clip: true
+            spacing: 0
+            Header {
+                id: conversationHeader
+                Layout.fillWidth: true
+            }
 
-        Composer { Layout.fillWidth: true }
+            ChatView {
+                objectName: "chatViewport"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+            }
+
+            // 更新提示横幅 —— 紧贴输入框上方（沿用 1.5 的“输入区域上方”位置）
+            // updateState: available（可一键更新）/ downloading（显示进度、禁止关闭）/ ready
+            Rectangle {
+                id: updateNotice
+                Layout.fillWidth: true
+                visible: controller && controller.updateText.length > 0
+                implicitHeight: visible ? 34 : 0
+                color: Theme.accentSoft
+                Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Theme.accentLine }
+                Row {
+                    anchors.fill: parent; anchors.leftMargin: 15; anchors.rightMargin: 12; spacing: 10
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width - updateBtn.width - 56
+                        text: controller ? controller.updateText : ""
+                        color: Theme.accent; font.family: Theme.fontBody; font.pixelSize: Theme.fXs
+                        elide: Text.ElideRight
+                    }
+                    Rectangle {
+                        id: updateBtn
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: controller && controller.updateState === "available"
+                        width: visible ? updateBtnLabel.implicitWidth + 22 : 0
+                        height: 22; radius: 11
+                        color: "transparent"; border.width: 1; border.color: Theme.accent
+                        Text { id: updateBtnLabel; anchors.centerIn: parent; text: "立即更新"
+                               color: Theme.accent; font.family: Theme.fontBody; font.pixelSize: Theme.fXs }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                            onClicked: if (controller) controller.startUpdate() }
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: !controller || (controller.updateState !== "downloading"
+                                                 && controller.updateState !== "installing")
+                        text: "✕"; color: Theme.textMute; font.pixelSize: Theme.fSm
+                        MouseArea { anchors.fill: parent; anchors.margins: -6; cursorShape: Qt.PointingHandCursor
+                            onClicked: if (controller) controller.dismissUpdate() }
+                    }
+                }
+            }
+
+            ContextBar {
+                id: sceneContextBar
+                Layout.fillWidth: true
+                Layout.maximumWidth: Theme.contentMaxWidth + Theme.sp(32)
+                Layout.alignment: Qt.AlignHCenter
+            }
+            Composer {
+                objectName: "composer"
+                Layout.fillWidth: true
+                Layout.maximumWidth: Theme.contentMaxWidth + Theme.sp(32)
+                Layout.alignment: Qt.AlignHCenter
+                availableHeightBudget: Math.max(0, conversationPane.height - conversationHeader.implicitHeight
+                    - sceneContextBar.implicitHeight - (updateNotice.visible ? updateNotice.implicitHeight : 0))
+            }
+        }
     }
 
     // Meshy 资产库浮层抽屉：向内叠在聊天之上；未被面板覆盖处用半透明磨砂遮罩盖住，点遮罩关闭。
@@ -111,19 +198,10 @@ Rectangle {
             width: Math.min(360, libOverlay.width * 0.88)
             height: parent.height
             color: Theme.bg
+            radius: Theme.radMd
             x: libOverlay.open ? 0 : -width - 2
             Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-            Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: Theme.border }
-            // 右缘投影，强化"叠在上方"的层次
-            Rectangle {
-                anchors.left: parent.right; width: 14; height: parent.height
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, 0.22) }
-                    GradientStop { position: 1.0; color: "transparent" }
-                }
-            }
-            LibraryContent { anchors.fill: parent; anchors.rightMargin: 1 }
+            LibraryContent { anchors.fill: parent }
         }
     }
 
@@ -157,6 +235,7 @@ Rectangle {
     FontPopup { id: fontPopup }
     TokenPopup { id: tokenPopup }
     ActionDialog { id: actionDialog }
+    ActionDialog { id: infoDialog; objectName: "infoDialog" }
     SubscriptionDialog { id: subscriptionDialog }
     ManagementPanel { id: managementPanel }
     SettingsWindow { id: settingsWindow }
@@ -165,11 +244,12 @@ Rectangle {
         target: controller
         ignoreUnknownSignals: true
         function onOpenSettingsDialog() { settingsWindow.open() }
-        function onOpenTemplates() { templateLibrary.open() }
+        function onOpenTemplates() { templateLibrary.openedFromSettings = settingsWindow.visible; templateLibrary.open() }
+        function onPrefillComposer(text) { settingsWindow.close() }
         function onOpenFontDialog() { fontPopup.open() }
         function onOpenTokenDialog() { tokenPopup.st = controller.tokenStats(); tokenPopup.open() }
-        function onOpenInfoDialog(title, body) { actionDialog.openInfo(title, body) }
-        function onOpenUpdateDialog(title, body) { actionDialog.openUpdate(title, body) }
+        function onOpenInfoDialog(title, body) { infoDialog.openInfo(title, body) }
+        function onOpenUpdateDialog(title, body) { infoDialog.openUpdate(title, body) }
         function onOpenSubscriptionDialog() { subscriptionDialog.show() }
         function onOpenApiKeyDialog(provider) { actionDialog.openApi(provider) }
         function onOpenCustomProviderDialog(url, key, model, anthropic, contextLimit, supportsVision) { actionDialog.openCustom(url, key, model, anthropic, contextLimit, supportsVision) }

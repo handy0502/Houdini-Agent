@@ -301,7 +301,7 @@ def show_tool():
     win.setWindowTitle("Houdini Agent")
     win.setStyleSheet("QMainWindow { background-color: #0d0d0d; }")
     win.setCentralWidget(view)
-    win.setMinimumSize(420, 760)
+    win.setMinimumSize(420, 560)
     geo = QSettings(*_GEO_ORG).value("geometry")
     restored = False
     if geo is not None:
@@ -310,7 +310,10 @@ def show_tool():
         except Exception:
             restored = False
     if not restored:
-        win.resize(440, 820)
+        screen = app.primaryScreen()
+        available = screen.availableGeometry() if screen else None
+        win.resize(min(1100, int(available.width() * 0.9)) if available else 1100,
+                   min(820, int(available.height() * 0.9)) if available else 820)
 
     coord = ExternalCoordinator(win, controller, repo_root)
     try:

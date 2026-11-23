@@ -21,8 +21,9 @@ Popup {
     height: Math.min(620, parent ? parent.height - 32 : 620)
     padding: 0
     modal: true
+    focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-    background: Rectangle { color: Theme.bg; border.color: Theme.border; border.width: 1; radius: Theme.radSm }
+    background: Rectangle { color: Theme.panel; border.color: Theme.border; border.width: 1; radius: Theme.radMd }
 
     contentItem: ColumnLayout {
         spacing: 0

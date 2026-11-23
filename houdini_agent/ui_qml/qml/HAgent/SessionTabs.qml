@@ -48,8 +48,6 @@ Rectangle {
             Layout.preferredHeight: Math.round(28 * Theme.scale)
             radius: Theme.radSm
             color: curMa.containsMouse ? Theme.surface : "transparent"
-            border.width: 1
-            border.color: curMa.containsMouse ? Theme.border : "transparent"
             Behavior on color { ColorAnimation { duration: 120 } }
             RowLayout {
                 anchors.fill: parent
@@ -86,8 +84,6 @@ Rectangle {
             Layout.preferredHeight: Math.round(26 * Theme.scale)
             radius: Theme.radSm
             color: plusMa.containsMouse ? Theme.surface : "transparent"
-            border.width: 1
-            border.color: plusMa.containsMouse ? Theme.border : "transparent"
             Text { anchors.centerIn: parent; text: "+"; color: plusMa.containsMouse ? Theme.text : Theme.textMute
                    font.pixelSize: Theme.fMd }
             MouseArea {
@@ -143,7 +139,7 @@ Rectangle {
                 clip: true
                 model: tabs.filtered()
                 boundsBehavior: Flickable.StopAtBounds
-                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                ScrollBar.vertical: SmartScrollBar {}
 
                 delegate: Rectangle {
                     id: row
@@ -331,7 +327,6 @@ Rectangle {
                     implicitWidth: delTxt.implicitWidth + 24
                     radius: Theme.radSm
                     color: dma.containsMouse ? Qt.rgba(0.867, 0.6, 0.6, 0.14) : "transparent"
-                    border.width: 1; border.color: Qt.rgba(0.867, 0.6, 0.6, 0.45)
                     Text { id: delTxt; anchors.centerIn: parent; text: tabs.loc("删除")
                            color: Theme.err; font.family: Theme.fontBody; font.pixelSize: Theme.fSm }
                     MouseArea {

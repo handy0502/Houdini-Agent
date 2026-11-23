@@ -1,7 +1,12 @@
 module HAgent
 singleton Theme Theme.qml
+AppIcon AppIcon.qml
+IconButton IconButton.qml
+ToggleSwitch ToggleSwitch.qml
+Sidebar Sidebar.qml
 Pill Pill.qml
 MenuPopup MenuPopup.qml
+ModelPicker ModelPicker.qml
 ActionDialog ActionDialog.qml
 SubscriptionDialog SubscriptionDialog.qml
 HoudiniPicker HoudiniPicker.qml
@@ -10,8 +15,10 @@ ManagementPanel ManagementPanel.qml
 Header Header.qml
 SessionTabs SessionTabs.qml
 ContextBar ContextBar.qml
+ContextUsage ContextUsage.qml
 Composer Composer.qml
 ChatView ChatView.qml
+ChatTimeline ChatTimeline.qml
 MessageUser MessageUser.qml
 MessageAI MessageAI.qml
 ThinkingBlock ThinkingBlock.qml
@@ -35,6 +42,7 @@ MeshyCard MeshyCard.qml
 ConceptGalleryCard ConceptGalleryCard.qml
 LibraryContent LibraryContent.qml
 SmartScrollBar SmartScrollBar.qml
+PanelScrollView PanelScrollView.qml
 SettingsWindow SettingsWindow.qml
 ManagementContent ManagementContent.qml
 ProviderManager ProviderManager.qml

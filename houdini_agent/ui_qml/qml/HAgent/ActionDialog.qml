@@ -5,11 +5,13 @@ import HAgent
 
 Popup {
     id: dlg
+    objectName: "actionDialog"
     property string mode: "info"
     property string dialogTitle: ""
     property string body: ""
     property string provider: ""
     property string confirmToken: ""
+    property bool sessionDelete: false
     property bool anthropic: false
     property bool supportsVision: false
     function loc(s) { return controller ? (controller.lang, controller.tr(s)) : s }
@@ -17,7 +19,12 @@ Popup {
     // 检查更新发现新版本：正文同 info，按钮为「稍后」+「立即更新」（与横幅按钮同一入口）
     function openUpdate(t, b) { mode = "update"; dialogTitle = t; body = b; open() }
     function openApi(p) { mode = "api"; provider = p; dialogTitle = "API Key · " + p; apiField.text = ""; open() }
-    function openConfirm(t, b, token) { mode = "confirm"; dialogTitle = t; body = b; confirmToken = token; open() }
+    function openConfirm(t, b, token) {
+        mode = "confirm"; dialogTitle = t; body = b; confirmToken = token
+        sessionDelete = !!controller && controller.isSessionDeleteConfirmation(token)
+        dontAskDelete.checked = false
+        open()
+    }
     function openCustom(url, key, model, isAnthropic, contextLimit, visionFlag) {
         mode = "custom"; dialogTitle = "Custom Provider"
         urlField.text = url || ""; customKeyField.text = key || ""; modelField.text = model || ""
@@ -28,14 +35,15 @@ Popup {
     parent: Overlay.overlay
     anchors.centerIn: parent
     width: Math.min(420, parent ? parent.width - 36 : 420)
-    padding: 18
+    padding: Theme.panelPadding
     modal: true
+    focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
     onClosed: {
         if (mode === "custom" && controller) controller.cancelCustomProvider()
         if (mode === "confirm" && controller) controller.cancelDialogConfirm(confirmToken)
     }
-    background: Rectangle { color: Theme.bg; border.color: Theme.border; border.width: 1; radius: Theme.radSm }
+    background: Rectangle { color: Theme.panel; border.color: Theme.border; border.width: 1; radius: Theme.radMd }
 
     contentItem: ColumnLayout {
         spacing: 14
@@ -117,6 +125,35 @@ Popup {
             }
         }
 
+        CheckBox {
+            id: dontAskDelete
+            objectName: "dontAskDeleteSession"
+            visible: dlg.mode === "confirm" && dlg.sessionDelete
+            Layout.fillWidth: true
+            Layout.minimumHeight: Theme.controlHeight
+            text: dlg.loc("以后删除不再询问（可在 设置 › 会话 中恢复）")
+            font.family: Theme.fontBody; font.pixelSize: Theme.fSm
+            spacing: Theme.sp(8)
+            indicator: Rectangle {
+                implicitWidth: Theme.fs(18); implicitHeight: width
+                x: dontAskDelete.leftPadding; y: (dontAskDelete.height - height) / 2
+                radius: Theme.fs(4)
+                color: dontAskDelete.checked ? Theme.switchOn : Theme.surface2
+                AppIcon {
+                    anchors.centerIn: parent
+                    visible: dontAskDelete.checked
+                    name: "check"; color: Theme.switchThumbOn
+                    width: Theme.fs(13); height: width
+                }
+            }
+            contentItem: Text {
+                text: dontAskDelete.text; font: dontAskDelete.font; color: Theme.textDim
+                leftPadding: dontAskDelete.indicator.width + dontAskDelete.spacing
+                verticalAlignment: Text.AlignVCenter
+                wrapMode: Text.Wrap
+            }
+        }
+
         RowLayout {
             Layout.fillWidth: true
             Item { Layout.fillWidth: true }
@@ -150,16 +187,24 @@ Popup {
                 onClicked: { if (!controller || controller.submitApiKey(dlg.provider, apiField.text)) dlg.close() }
             }
             Pill {
+                objectName: "submitCustomDialog"
                 label: dlg.loc("提交")
                 visible: dlg.mode === "custom"
                 accent: true
                 onClicked: { if (!controller || controller.submitCustomProvider(urlField.text, customKeyField.text, modelField.text, dlg.anthropic, contextField.text, dlg.supportsVision)) dlg.close() }
             }
             Pill {
+                objectName: "confirmDialogButton"
                 label: dlg.loc("确认")
                 visible: dlg.mode === "confirm"
                 accent: true
-                onClicked: { if (controller) controller.acceptDialogConfirm(dlg.confirmToken); dlg.close() }
+                onClicked: {
+                    if (controller) {
+                        if (dlg.sessionDelete && dontAskDelete.checked) controller.setAskDeleteSession(false)
+                        controller.acceptDialogConfirm(dlg.confirmToken)
+                    }
+                    dlg.close()
+                }
             }
         }
     }

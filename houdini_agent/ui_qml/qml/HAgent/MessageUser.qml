@@ -1,7 +1,7 @@
 import QtQuick
 import HAgent
 
-// User message — right-aligned, bordered, square (Editorial).
+// User message — a right-aligned bubble on a soft neutral surface.
 // Shows attached image thumbnails (if any) above the text.
 Item {
     id: root
@@ -45,14 +45,13 @@ Item {
         // text bubble
         Rectangle {
             id: bubble
+            objectName: "userMessageBubble"
             anchors.right: parent.right
             visible: txt.text.length > 0
-            width: Math.min(parent.width * 0.86, txt.implicitWidth + 28)
-            height: txt.implicitHeight + 22
-            color: "transparent"
-            border.color: Theme.userBorder
-            border.width: 1
-            radius: Theme.radSm
+            width: Math.min(parent.width * 0.86, txt.implicitWidth + 32)
+            height: txt.implicitHeight + 24
+            color: Theme.userBg
+            radius: Theme.radLg
 
             TextEdit {
                 id: txt

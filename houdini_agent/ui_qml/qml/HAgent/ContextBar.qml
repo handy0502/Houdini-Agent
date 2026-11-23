@@ -8,8 +8,6 @@ Rectangle {
     color: "transparent"
     implicitHeight: Math.round(30 * Theme.scale)
 
-    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.border }
-
     RowLayout {
         anchors.fill: parent
         anchors.leftMargin: 16; anchors.rightMargin: 14
@@ -17,7 +15,7 @@ Rectangle {
 
         Text {
             text: controller ? controller.scenePath : "/obj/geo1"
-            color: Theme.accent
+            color: Theme.textMute
             font.family: Theme.fontMono
             font.pixelSize: Theme.fXs
         }
@@ -30,16 +28,11 @@ Rectangle {
             font.pixelSize: Theme.fXs
             elide: Text.ElideRight
         }
-        Text {
-            text: "↻"
-            color: refreshMa.containsMouse ? Theme.text : Theme.textMute
-            font.pixelSize: Theme.fSm
-            MouseArea {
-                id: refreshMa
-                anchors.fill: parent; anchors.margins: -6
-                hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                onClicked: if (controller) controller.refreshContext()
-            }
+        IconButton {
+            icon: "refresh"
+            implicitWidth: 24; implicitHeight: 24
+            tooltip: controller && controller.lang === "en" ? "Refresh scene context" : "刷新场景上下文"
+            onClicked: if (controller) controller.refreshContext()
         }
     }
 }

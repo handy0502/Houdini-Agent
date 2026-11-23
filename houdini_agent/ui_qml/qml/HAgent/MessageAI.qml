@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import HAgent
 
-// AI response — left rule + stacked blocks. Blocks come from a per-message
+// AI response — unboxed content with stacked blocks. Blocks come from a per-message
 // QAbstractListModel (msg.bm) so only changed rows update (no full rebuild).
 Item {
     id: root
@@ -14,17 +14,10 @@ Item {
         width: parent.width
         spacing: 0
 
-        Rectangle {
-            Layout.fillHeight: true
-            Layout.preferredWidth: 1
-            color: Theme.accentLine
-        }
-
         ColumnLayout {
             id: col
             Layout.fillWidth: true
-            Layout.leftMargin: 14
-            spacing: 12
+            spacing: Theme.sp(16)
 
             // empty-state generating indicator
             RowLayout {

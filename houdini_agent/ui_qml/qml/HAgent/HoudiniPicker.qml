@@ -108,7 +108,7 @@ Rectangle {
             spacing: 6
             model: picker ? picker.installs : []
             boundsBehavior: Flickable.StopAtBounds
-            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+            ScrollBar.vertical: SmartScrollBar {}
 
             delegate: Rectangle {
                 width: ListView.view.width
@@ -116,8 +116,6 @@ Rectangle {
                 radius: Theme.radSm
                 property bool sel: index === root.selectedIndex
                 color: sel ? Theme.accentSoft : (rowMa.containsMouse ? Theme.surface2 : Theme.surface)
-                border.width: 1
-                border.color: sel ? Theme.accentLine : Theme.borderSoft
                 Behavior on color { ColorAnimation { duration: 100 } }
 
                 ColumnLayout {
@@ -186,8 +184,6 @@ Rectangle {
                 implicitHeight: 34
                 radius: Theme.radSm
                 color: laterMa.containsMouse ? Theme.surface : "transparent"
-                border.width: 1
-                border.color: laterMa.containsMouse ? Theme.border : Theme.borderSoft
                 Behavior on color { ColorAnimation { duration: 120 } }
                 Text {
                     id: laterTxt

@@ -255,7 +255,7 @@ UI_EN = {
     "删除": "Delete", "打开插件目录": "Open plugins folder",
     # 设置浮窗 + 会话管理（方案A）
     "设置…": "Settings…", "设置": "Settings", "常规": "General", "扩展": "Extensions",
-    "外观与字号": "Appearance & font", "会话": "Sessions", "模型与 Provider": "Model & Provider",
+    "外观": "Appearance", "会话": "Sessions", "模型与 Provider": "Model & Provider",
     "规则": "Rules", "插件": "Plugins", "记忆": "Memory", "关于": "About",
     "搜索会话…": "Search sessions…", "没有匹配的会话": "No matching sessions",
     "删除会话": "Delete session", "此操作无法撤销。": "This can't be undone.",
@@ -300,8 +300,13 @@ UI_EN = {
     "主题": "Theme", "强调色": "Accent", "字体方案": "Typeface", "界面密度": "Density",
     "深色三档，外加日光（浅色）。选日光会整体翻成浅色，强调色自动加深保证可读。":
         "Three dark tones plus Daylight (light). Daylight flips everything light and darkens the accent so it stays readable.",
-    "选中态、指示点、用户气泡与按钮描边的颜色。":
-        "Color for selection, dots, your message bubble and button outlines.",
+    "选中态、指示点与用户气泡的颜色。":
+        "Color for selection, dots and your message bubble.",
+    "创作": "Create", "导出": "Export", "查看": "View", "压缩": "Compact", "清空": "Clear", "开始": "Start",
+    "配置 API Key": "Configure API Key",
+    "返回设置": "Back to settings",
+    "API Key 是 Meshy 的登录凭证。": "Connect using your Meshy API key.",
+    "支持图片输入": "Image input", "缩小字号": "Decrease font size", "放大字号": "Increase font size",
     "标题 / 正文 / 等宽三件套的整体气质。": "The display / body / mono pairing for the whole UI.",
     "间距与行高的松紧，不改字号。": "How tight the spacing and line height feel — font size unchanged.",
     "极夜": "Noir", "石墨": "Graphite", "午夜蓝": "Midnight", "日光": "Daylight",
@@ -632,9 +637,9 @@ class Controller(QObject):
         self._cook_suspended = False     # set when a cook is interrupted/too slow (per run)
         self._font_scale = 1.0
         # 外观（主题/强调色/字体方案/密度）——驱动 Theme.qml 换肤
-        self._app_theme = "noir"          # noir | graphite | midnight | day
-        self._accent_key = "warm"         # warm | steel | celadon | clay | neutral
-        self._font_family_key = "editorial"  # editorial | modern | mono
+        self._app_theme = "graphite"      # noir | graphite | midnight | day
+        self._accent_key = "neutral"      # warm | steel | celadon | clay | neutral
+        self._font_family_key = "modern"  # editorial | modern | mono
         self._density_key = "normal"      # compact | normal | roomy
         self._my_templates = []           # 用户自存模板（templates.json）
         self._scene_path = "/obj"
@@ -644,6 +649,7 @@ class Controller(QObject):
         self._last_attached_images = []  # 本轮用户附带图片(data URI)，供 meshy 图生图回退
         self._interactive = {}      # cid/qid -> queue.Queue (confirm / ask_question)
         self._confirm_actions = {}  # token -> callable
+        self._session_delete_confirms = set()
         self._int_seq = 0
         # Meshy 云资产库（侧滑抽屉）
         self._library_open = False
@@ -938,13 +944,23 @@ class Controller(QObject):
             except Exception:
                 pass
             # 外观（带白名单校验，挡掉脏值）
-            t = str(s.value("app_theme", "noir") or "noir")
+            t = str(s.value("app_theme", "graphite") or "graphite")
             if t in ("noir", "graphite", "midnight", "day"):
                 self._app_theme = t
-            a = str(s.value("accent_key", "warm") or "warm")
+            a = str(s.value("accent_key", "neutral") or "neutral")
             if a in ("warm", "steel", "celadon", "clay", "neutral"):
                 self._accent_key = a
-            f = str(s.value("font_family_key", "editorial") or "editorial")
+            f = str(s.value("font_family_key", "modern") or "modern")
+            # Apply the new neutral defaults once for the legacy default look.
+            # Custom theme/accent/font combinations remain intact.
+            if not s.value("ui_style_revision", ""):
+                if (t, a, f) == ("noir", "warm", "editorial"):
+                    t, a, f = "graphite", "neutral", "modern"
+                    self._app_theme, self._accent_key = t, a
+                    s.setValue("app_theme", t)
+                    s.setValue("accent_key", a)
+                    s.setValue("font_family_key", f)
+                s.setValue("ui_style_revision", 1)
             if f in ("editorial", "modern", "mono"):
                 self._font_family_key = f
             d = str(s.value("density_key", "normal") or "normal")
@@ -977,6 +993,17 @@ class Controller(QObject):
 
     def _get_model(self): return self._model_name
     model = Property(str, _get_model, notify=modelChanged)
+
+    @Slot(str, result=str)
+    def modelNameLabel(self, model):
+        brands = {"gpt": "GPT", "glm": "GLM", "openai": "OpenAI", "deepseek": "DeepSeek"}
+        return "".join(
+            brands.get(part.lower(), part[:1].upper() + part[1:].lower())
+            for part in re.split(r"([/\s_-])", model or "")
+        )
+
+    def _get_model_display_name(self): return self.modelNameLabel(self._model_name)
+    modelDisplayName = Property(str, _get_model_display_name, notify=modelChanged)
 
     def _get_show_thinking(self): return self._show_thinking
     showThinking = Property(bool, _get_show_thinking, notify=showThinkingChanged)
@@ -1050,6 +1077,13 @@ class Controller(QObject):
         except Exception:
             pass
         self.effortChanged.emit()
+
+    @Slot()
+    def resetReasoningEffort(self):
+        if not self._effort_levels():
+            return
+        from houdini_agent.subscription import default_effort
+        self.setReasoningEffort(default_effort(self._sub_kind(), self._model_name))
 
     def _get_running(self): return self._running
     running = Property(bool, _get_running, notify=runningChanged)
@@ -1258,7 +1292,7 @@ class Controller(QObject):
     @Slot(result="QVariantList")
     def modelItems(self):
         models = self._provider_model_names(self._provider)
-        items = [{"label": m, "val": m, "checked": m == self._model_name} for m in models]
+        items = [{"label": self.modelNameLabel(m), "val": m, "checked": m == self._model_name} for m in models]
         kind = self._sub_kind()
         if kind:
             accs = []
@@ -1978,14 +2012,21 @@ class Controller(QObject):
         except Exception as e:
             print("[controller] info:", title, text, e)
 
-    def _request_confirm(self, title, body, fn):
+    def _request_confirm(self, title, body, fn, *, session_delete=False):
         token = uuid.uuid4().hex[:10]
         self._confirm_actions[token] = fn
+        if session_delete:
+            self._session_delete_confirms.add(token)
         self.openConfirmDialog.emit(self.tr(title), str(body), token)
+
+    @Slot(str, result=bool)
+    def isSessionDeleteConfirmation(self, token):
+        return token in self._session_delete_confirms
 
     @Slot(str)
     def acceptDialogConfirm(self, token):
         fn = self._confirm_actions.pop(token, None)
+        self._session_delete_confirms.discard(token)
         if fn:
             try:
                 fn()
@@ -1995,6 +2036,7 @@ class Controller(QObject):
     @Slot(str)
     def cancelDialogConfirm(self, token):
         self._confirm_actions.pop(token, None)
+        self._session_delete_confirms.discard(token)
 
     @Slot(result="QVariantList")
     def rulesItems(self):
@@ -2827,7 +2869,7 @@ class Controller(QObject):
             return
         title = self._sessions[idx].get("title", "当前会话")
         self._request_confirm("关闭会话", "确定要关闭「%s」吗？该会话会从本地历史中移除。" % title,
-                              lambda idx=idx: self._close_session_now(idx))
+                              lambda idx=idx: self._close_session_now(idx), session_delete=True)
 
     def _close_session_now(self, idx):
         if idx < 0 or idx >= len(self._sessions) or len(self._sessions) <= 1:
@@ -3243,7 +3285,7 @@ class Controller(QObject):
 
     @Slot(result="QVariantList")
     def meshyMenuItems(self):
-        """顶栏 Meshy 按钮的下拉项（val 传给 openMeshy）。"""
+        """设置内 Meshy 分区的网页入口（val 传给 openMeshy）。"""
         t = self.tr
         return [
             {"label": t("打开 Meshy 官网"), "val": "home"},

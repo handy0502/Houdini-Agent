@@ -431,13 +431,13 @@ Item {
                         spacing: 8
                         Rectangle {
                             width: (parent.width - 16) / 3; height: Math.round(28 * Theme.scale)
-                            color: "transparent"; border.color: Theme.border; border.width: 1; radius: Theme.radSm
+                            color: "transparent"; radius: Theme.radSm
                             Text { anchors.centerIn: parent; text: "取消修改"; color: Theme.text; font.family: Theme.fontBody; font.pixelSize: Theme.fXs }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { pc.editMode = false; pc.resetEditor() } }
                         }
                         Rectangle {
                             width: (parent.width - 16) / 3; height: Math.round(28 * Theme.scale)
-                            color: Theme.surface2; border.color: Theme.border; border.width: 1; radius: Theme.radSm
+                            color: Theme.surface2; radius: Theme.radSm
                             Text { anchors.centerIn: parent; text: "保存手动修改"; color: Theme.textBright; font.family: Theme.fontBody; font.pixelSize: Theme.fXs }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: pc.submitManualEdit() }
                         }
@@ -463,14 +463,14 @@ Item {
                     visible: pc.actionState === "" && !pc.editMode
                     Rectangle {
                         width: (parent.width - 16) / 3; height: parent.height - 18
-                        color: "transparent"; border.color: Theme.border; border.width: 1; radius: Theme.radSm
+                        color: "transparent"; radius: Theme.radSm
                         Text { anchors.centerIn: parent; text: "修改计划"; color: Theme.text; font.family: Theme.fontBody; font.pixelSize: Theme.fSm }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { pc.editMode = true; pc.resetEditor() } }
                     }
                     Rectangle {
                         width: (parent.width - 16) / 3; height: parent.height - 18
-                        color: "transparent"; border.color: Theme.border; border.width: 1; radius: Theme.radSm
+                        color: "transparent"; radius: Theme.radSm
                         Text { anchors.centerIn: parent; text: pc.loc("驳回"); color: Theme.text; font.family: Theme.fontBody; font.pixelSize: Theme.fSm }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { if (!controller || controller.rejectPlan("")) pc.actionState = "rejected" } }

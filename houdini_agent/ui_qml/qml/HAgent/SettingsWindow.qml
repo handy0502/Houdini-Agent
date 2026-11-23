@@ -7,9 +7,17 @@ import HAgent
 // 把散落在 ⋯ 菜单里的设置归并到一处。窄面板自适应缩放。
 Popup {
     id: win
+    objectName: "settingsWindow"
     function loc(s) { return controller ? (controller.lang, controller.tr(s)) : s }
 
-    property string sec: "sessions"
+    property string sec: "general"
+    function action(value) {
+        // Configuration dialogs keep this page behind them. Only actions that
+        // intentionally return to the conversation dismiss the settings page.
+        if (value === "library" || value === "clear") win.close()
+        if (controller) controller.menuAction(value)
+    }
+    readonly property bool compact: width < Theme.fs(620)
 
     parent: Overlay.overlay
     anchors.centerIn: parent
@@ -17,25 +25,12 @@ Popup {
     height: Math.min(Math.round(560 * Theme.scale), parent ? parent.height - 18 : 560)
     padding: 0
     modal: true
+    focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-    background: Rectangle { color: Theme.panel; border.color: Theme.border; border.width: 1; radius: 6 }
+    background: Rectangle { color: Theme.panel; border.color: Theme.border; border.width: 1; radius: Theme.radMd }
 
     // ---- reusable inline pieces ----
-    component Toggle: Rectangle {
-        id: tg
-        property bool on: false
-        signal toggled()
-        width: 38; height: 21; radius: 11
-        color: on ? Theme.accentSoft : Theme.surface2
-        border.width: 1; border.color: on ? Theme.accentLine : Theme.border
-        Rectangle {
-            y: 1; width: 17; height: 17; radius: 8.5
-            x: tg.on ? 18 : 1
-            color: tg.on ? Theme.accent : Theme.textMute
-            Behavior on x { NumberAnimation { duration: 130; easing.type: Easing.OutCubic } }
-        }
-        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: tg.toggled() }
-    }
+    component Toggle: ToggleSwitch {}
 
     component FieldRow: ColumnLayout {
         property string name: ""
@@ -43,13 +38,15 @@ Popup {
         default property alias content: slot.data
         Layout.fillWidth: true
         spacing: 0
-        RowLayout {
+        GridLayout {
+            id: fieldGrid
             Layout.fillWidth: true
-            Layout.topMargin: 14; Layout.bottomMargin: 14
-            spacing: 14
+            Layout.topMargin: Theme.sp(14); Layout.bottomMargin: Theme.sp(14)
+            columns: width < Theme.fs(340) ? 1 : 2
+            columnSpacing: Theme.sp(20); rowSpacing: Theme.sp(10)
             ColumnLayout {
-                Layout.fillWidth: true; spacing: 3
-                Text { text: name; color: Theme.text; font.family: Theme.fontBody; font.pixelSize: Theme.fMd }
+                Layout.fillWidth: true; spacing: Theme.sp(4)
+                Text { Layout.fillWidth: true; text: name; color: Theme.text; font.family: Theme.fontBody; font.pixelSize: Theme.fBody; wrapMode: Text.Wrap }
                 Text {
                     visible: desc.length > 0; text: desc
                     Layout.fillWidth: true
@@ -59,7 +56,7 @@ Popup {
             }
             Item {
                 id: slot
-                Layout.alignment: Qt.AlignTop | Qt.AlignRight
+                Layout.alignment: Qt.AlignVCenter | (fieldGrid.columns === 1 ? Qt.AlignLeft : Qt.AlignRight)
                 Layout.preferredWidth: childrenRect.width
                 Layout.preferredHeight: childrenRect.height
             }
@@ -68,24 +65,12 @@ Popup {
     }
 
     component SectionTitle: Text {
-        color: Theme.textMute; font.family: Theme.fontMono; font.pixelSize: Theme.fMicro
-        font.letterSpacing: Theme.trackLabel; bottomPadding: 6
+        color: Theme.textMute; font.family: Theme.fontBody; font.pixelSize: Theme.fXs
+        bottomPadding: Theme.sp(6)
     }
 
     // small flat text button
-    component TButton: Rectangle {
-        property string label: ""
-        signal clicked()
-        implicitHeight: Math.round(28 * Theme.scale)
-        implicitWidth: tbtxt.implicitWidth + 24
-        radius: Theme.radSm
-        color: tbma.containsMouse ? Theme.surface : "transparent"
-        border.width: 1; border.color: Theme.border
-        Text { id: tbtxt; anchors.centerIn: parent; text: label; color: Theme.text
-               font.family: Theme.fontBody; font.pixelSize: Theme.fSm }
-        MouseArea { id: tbma; anchors.fill: parent; hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor; onClicked: parent.clicked() }
-    }
+    component TButton: Pill {}
 
     // 选项胶囊（可带圆形色块）
     component OptChip: Rectangle {
@@ -94,24 +79,33 @@ Popup {
         property bool on: false
         property color dot: "transparent"
         property bool showDot: false
+        readonly property color ink: showDot ? (on ? Theme.swatchInk(dot) : "#d0d0d0")
+                                            : (on ? Theme.accent : Theme.textDim)
         signal clicked()
-        implicitHeight: Math.round(30 * Theme.scale)
-        implicitWidth: ocRow.implicitWidth + 22
-        radius: Theme.radSm
-        color: on ? Theme.surface2 : (ocMa.containsMouse ? Theme.surface : "transparent")
-        border.width: 1; border.color: on ? Theme.accentLine : Theme.border
+        implicitHeight: Theme.controlHeight
+        implicitWidth: ocRow.implicitWidth + Theme.fs(22)
+        radius: height / 2
+        color: showDot ? (on ? dot : (ocMa.containsMouse ? Qt.lighter(Theme.mutedSwatch(dot), 1.15) : Theme.mutedSwatch(dot)))
+                       : (on ? Theme.accentSoft : (ocMa.containsMouse ? Theme.surface : "transparent"))
         Row {
-            id: ocRow; anchors.centerIn: parent; spacing: 7
+            id: ocRow; anchors.centerIn: parent; spacing: Theme.sp(7)
             Rectangle {
                 visible: chip.showDot; anchors.verticalCenter: parent.verticalCenter
-                width: 12; height: 12; radius: 6; color: chip.dot
-                border.width: 1; border.color: Theme.border
+                width: Theme.fs(12); height: width; radius: width / 2; color: chip.dot
+                border.width: 1; border.color: Qt.rgba(chip.ink.r, chip.ink.g, chip.ink.b, 0.3)
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: chip.text
-                color: chip.on ? Theme.textBright : Theme.textDim
+                color: chip.ink
                 font.family: Theme.fontBody; font.pixelSize: Theme.fSm
+                font.weight: chip.on ? Font.DemiBold : Font.Normal
+            }
+            AppIcon {
+                anchors.verticalCenter: parent.verticalCenter
+                name: "check"; color: chip.ink
+                width: Theme.fs(13); height: width
+                opacity: chip.on ? 1 : 0
             }
         }
         MouseArea { id: ocMa; anchors.fill: parent; hoverEnabled: true
@@ -129,9 +123,9 @@ Popup {
         Layout.fillWidth: true
         spacing: 0
         ColumnLayout {
-            Layout.fillWidth: true; Layout.topMargin: 14; spacing: 3
+            Layout.fillWidth: true; Layout.topMargin: Theme.sp(14); spacing: Theme.sp(4)
             Text { text: secRoot.name; color: Theme.text
-                   font.family: Theme.fontBody; font.pixelSize: Theme.fMd }
+                   font.family: Theme.fontBody; font.pixelSize: Theme.fBody }
             Text {
                 visible: secRoot.desc.length > 0; text: secRoot.desc
                 Layout.fillWidth: true
@@ -140,11 +134,12 @@ Popup {
             }
         }
         Flow {
-            Layout.fillWidth: true; Layout.topMargin: 11; Layout.bottomMargin: 14; spacing: 7
+            Layout.fillWidth: true; Layout.topMargin: Theme.sp(10); Layout.bottomMargin: Theme.sp(14); spacing: Theme.sp(6)
             Repeater {
                 model: secRoot.model
                 delegate: OptChip {
                     required property var modelData
+                    objectName: "appearanceOption_" + modelData.key
                     text: modelData.label
                     showDot: modelData.showDot === true
                     dot: modelData.dot !== undefined ? modelData.dot : "transparent"
@@ -159,9 +154,12 @@ Popup {
     property var navModel: [
         { grp: loc("设置") },
         { id: "general",    name: loc("常规") },
-        { id: "appearance", name: loc("外观与字号") },
+        { id: "appearance", name: loc("外观") },
         { id: "sessions",   name: loc("会话") },
         { id: "model",      name: loc("模型与 Provider") },
+        { grp: loc("创作") },
+        { id: "meshy",      name: "Meshy" },
+        { id: "templates",  name: loc("提示词模板") },
         { grp: loc("扩展") },
         { id: "rules",      name: loc("规则") },
         { id: "plugins",    name: loc("插件") },
@@ -178,54 +176,69 @@ Popup {
 
         // ---------- left nav ----------
         Rectangle {
-            Layout.preferredWidth: Math.round(150 * Theme.scale)
+            objectName: "settingsNavigation"
+            visible: !win.compact
+            Layout.preferredWidth: Theme.fs(150)
             Layout.fillHeight: true
             color: Theme.panelDeep
-            Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: Theme.borderSoft }
-            ColumnLayout {
+            radius: Theme.radMd
+            PanelScrollView {
+                id: navigationScroll
+                objectName: "settingsNavigationScroll"
                 anchors.fill: parent
-                anchors.margins: 10
-                spacing: 2
-                Repeater {
-                    model: win.navModel
-                    delegate: Item {
-                        id: navd
-                        required property var modelData
-                        Layout.fillWidth: true
-                        implicitHeight: modelData.grp !== undefined
-                                        ? Math.round(28 * Theme.scale) : Math.round(32 * Theme.scale)
-                        // group label
-                        Text {
-                            visible: navd.modelData.grp !== undefined
-                            anchors.left: parent.left; anchors.leftMargin: 10
-                            anchors.bottom: parent.bottom; anchors.bottomMargin: 5
-                            text: navd.modelData.grp || ""
-                            color: Theme.textMute; font.family: Theme.fontMono; font.pixelSize: Theme.fMicro
-                            font.letterSpacing: Theme.trackLabel
-                        }
-                        // nav item
-                        Rectangle {
-                            visible: navd.modelData.id !== undefined
-                            anchors.fill: parent
-                            radius: Theme.radSm
-                            color: navd.modelData.id === win.sec ? Theme.surface2
-                                  : (niMa.containsMouse ? Theme.surface : "transparent")
-                            Text {
-                                anchors.left: parent.left; anchors.leftMargin: 10
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: navd.modelData.name || ""
-                                color: navd.modelData.id === win.sec ? Theme.text : Theme.textDim
-                                font.family: Theme.fontBody; font.pixelSize: Theme.fSm
+                anchors.margins: Theme.sp(10)
+                clip: true
+                contentWidth: availableWidth
+                ColumnLayout {
+                    width: navigationScroll.availableWidth
+                    spacing: Theme.sp(2)
+                    Repeater {
+                        model: win.navModel
+                        delegate: Item {
+                            id: navd
+                            required property int index
+                            objectName: "settingsNav_" + (modelData.id || "group")
+                            required property var modelData
+                            Layout.fillWidth: true
+                            implicitHeight: modelData.grp !== undefined
+                                            ? Math.round(28 * Theme.scale) : Math.round(32 * Theme.scale)
+                            // group label
+                            Item {
+                                objectName: "settingsGroup_" + index
+                                visible: navd.modelData.grp !== undefined
+                                anchors.fill: parent
+                                anchors.topMargin: Theme.sp(3); anchors.bottomMargin: Theme.sp(3)
+                                Text {
+                                    anchors.left: parent.left; anchors.leftMargin: Theme.sp(10)
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: navd.modelData.grp || ""
+                                    color: Theme.textDim; font.family: Theme.fontBody; font.pixelSize: Theme.fXs
+                                    font.weight: Font.Bold
+                                }
                             }
-                            MouseArea {
-                                id: niMa; anchors.fill: parent; hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: if (navd.modelData.id !== undefined) win.sec = navd.modelData.id
+                            // nav item
+                            Rectangle {
+                                visible: navd.modelData.id !== undefined
+                                anchors.fill: parent
+                                radius: Theme.radSm
+                                color: navd.modelData.id === win.sec ? Theme.accentSoft
+                                      : (niMa.containsMouse ? Theme.surface : "transparent")
+                                Text {
+                                    anchors.left: parent.left; anchors.leftMargin: Theme.sp(10)
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: navd.modelData.name || ""
+                                    color: navd.modelData.id === win.sec ? Theme.text : Theme.textDim
+                                    font.family: Theme.fontBody; font.pixelSize: Theme.fSm
+                                }
+                                MouseArea {
+                                    id: niMa; anchors.fill: parent; hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: if (navd.modelData.id !== undefined) win.sec = navd.modelData.id
+                                }
                             }
                         }
                     }
                 }
-                Item { Layout.fillHeight: true }
             }
         }
 
@@ -237,22 +250,34 @@ Popup {
 
             // top bar
             RowLayout {
+                id: settingsHeader
                 Layout.fillWidth: true
-                Layout.leftMargin: 18; Layout.rightMargin: 14
-                Layout.topMargin: 14; Layout.bottomMargin: 14
+                Layout.preferredHeight: Theme.panelHeaderHeight
+                Layout.leftMargin: Theme.panelPadding; Layout.rightMargin: Theme.panelPadding
+                spacing: Theme.sp(8)
                 Text {
+                    visible: !win.compact
                     Layout.fillWidth: true
                     text: win.secName(win.sec)
                     color: Theme.textBright
                     font.family: Theme.fontDisplay; font.pixelSize: Theme.fLg; font.weight: Font.Medium
                 }
-                Rectangle {
-                    width: 26; height: 26; radius: Theme.radSm
-                    color: closeMa.containsMouse ? Theme.surface : "transparent"
-                    border.width: 1; border.color: closeMa.containsMouse ? Theme.border : "transparent"
-                    Text { anchors.centerIn: parent; text: "✕"; color: Theme.textMute; font.pixelSize: Theme.fSm }
-                    MouseArea { id: closeMa; anchors.fill: parent; hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor; onClicked: win.close() }
+                Pill {
+                    objectName: "settingsSectionSelector"
+                    visible: win.compact
+                    Layout.fillWidth: true
+                    label: win.secName(win.sec); caret: true
+                    onClicked: {
+                        sectionMenu.items = win.navModel.filter(function(item) { return item.id !== undefined }).map(function(item) {
+                            return {label: item.name, val: item.id, checked: item.id === win.sec}
+                        })
+                        sectionMenu.open()
+                    }
+                }
+                IconButton {
+                    objectName: "settingsCloseButton"
+                    icon: "close"; circular: true; tooltip: win.loc("关闭")
+                    onClicked: win.close()
                 }
             }
             Rectangle { Layout.fillWidth: true; height: 1; color: Theme.borderSoft }
@@ -265,7 +290,7 @@ Popup {
                 property bool isProviders: win.sec === "model"
 
                 // 配置类分区：可滚动的字段列
-                ScrollView {
+                PanelScrollView {
                     id: scroll
                     anchors.fill: parent
                     visible: !bodyArea.isMgmt && !bodyArea.isProviders
@@ -273,17 +298,20 @@ Popup {
                     contentWidth: availableWidth
                     Item {
                         width: scroll.availableWidth
-                        implicitHeight: secCol.implicitHeight + 32
+                        implicitHeight: secCol.implicitHeight + Theme.panelPadding * 2
                         ColumnLayout {
                             id: secCol
-                            x: 22; y: 16
-                            width: parent.width - 44
+                            x: Theme.panelPadding; y: Theme.panelPadding
+                            width: parent.width - Theme.panelPadding * 2
                             spacing: 0
                             Loader {
+                                objectName: "settingsSectionLoader"
                                 Layout.fillWidth: true
                                 sourceComponent: win.sec === "general" ? cGeneral
                                                : win.sec === "appearance" ? cAppearance
                                                : win.sec === "sessions" ? cSessions
+                                               : win.sec === "meshy" ? cMeshy
+                                               : win.sec === "templates" ? cTemplates
                                                : cAbout
                             }
                         }
@@ -292,24 +320,34 @@ Popup {
 
                 // 模型与 Provider：内嵌多供应商管理器
                 ProviderManager {
+                    objectName: "settingsProviders"
                     anchors.fill: parent
-                    anchors.leftMargin: 18; anchors.rightMargin: 16
-                    anchors.topMargin: 12; anchors.bottomMargin: 14
+                    anchors.margins: Theme.panelPadding
                     visible: bodyArea.isProviders
                     active: bodyArea.isProviders
                 }
 
                 // 规则 / 插件 / 记忆：直接内嵌完整面板（不再弹独立窗口）
                 ManagementContent {
+                    objectName: "settingsManagement"
                     anchors.fill: parent
-                    anchors.leftMargin: 18; anchors.rightMargin: 16
-                    anchors.topMargin: 12; anchors.bottomMargin: 14
+                    anchors.margins: Theme.panelPadding
                     visible: bodyArea.isMgmt
                     active: bodyArea.isMgmt
                     mode: win.sec === "rules" ? "rules" : win.sec === "plugins" ? "plugins" : "memory"
                 }
             }
         }
+    }
+
+    MenuPopup {
+        id: sectionMenu; objectName: "settingsSectionMenu"
+        parent: win.contentItem
+        x: Theme.panelPadding; y: Theme.panelHeaderHeight
+        menuWidth: Math.min(Theme.fs(210), win.width - Theme.panelPadding * 2)
+        maximumHeight: win.height - Theme.panelHeaderHeight - Theme.panelPadding
+        checkable: true
+        onPicked: function(val) { win.sec = val }
     }
 
     // ================= section contents =================
@@ -321,19 +359,19 @@ Popup {
             FieldRow {
                 name: win.loc("显示思考过程")
                 desc: win.loc("在回答里显示模型的思考过程（<think> 内容）。")
-                Toggle { on: controller ? controller.showThinking : true
+                Toggle { objectName: "thinkingToggle"; Accessible.name: win.loc("显示思考过程"); on: controller ? controller.showThinking : true
                     onToggled: if (controller) controller.setThink(!controller.showThinking) }
             }
             FieldRow {
                 name: win.loc("实时 Cook")
                 desc: win.loc("执行修改场景的工具后实时重算（cook）。关闭可在批量操作时提速。")
-                Toggle { on: controller ? controller.cookRealtime : true
+                Toggle { objectName: "cookToggle"; Accessible.name: win.loc("实时 Cook"); on: controller ? controller.cookRealtime : true
                     onToggled: if (controller) controller.menuAction("cook") }
             }
             FieldRow {
                 name: win.loc("长期记忆")
                 desc: win.loc("让助手跨会话记住你的偏好与项目信息。可在「记忆」分区查看与删除。")
-                Toggle { on: controller ? controller.memoryEnabled : false
+                Toggle { objectName: "memoryToggle"; Accessible.name: win.loc("长期记忆"); on: controller ? controller.memoryEnabled : false
                     onToggled: if (controller) controller.menuAction("memory") }
             }
             Item { Layout.preferredHeight: 10 }
@@ -355,36 +393,36 @@ Popup {
         id: cAppearance
         ColumnLayout {
             spacing: 0
-            SectionTitle { text: win.loc("外观与字号") }
+            SectionTitle { text: win.loc("外观") }
             OptSection {
                 name: win.loc("主题")
                 desc: win.loc("深色三档，外加日光（浅色）。选日光会整体翻成浅色，强调色自动加深保证可读。")
-                current: controller ? controller.appTheme : "noir"
+                current: controller ? controller.appTheme : "graphite"
                 model: [
                     { key: "noir",     label: win.loc("极夜"),   showDot: true, dot: "#0d0d0d" },
-                    { key: "graphite", label: win.loc("石墨"),   showDot: true, dot: "#1b1b1b" },
-                    { key: "midnight", label: win.loc("午夜蓝"), showDot: true, dot: "#0c0e14" },
-                    { key: "day",      label: win.loc("日光"),   showDot: true, dot: "#e6e1d6" }
+                    { key: "graphite", label: win.loc("石墨"),   showDot: true, dot: "#212121" },
+                    { key: "midnight", label: win.loc("午夜蓝"), showDot: true, dot: "#0c0e13" },
+                    { key: "day",      label: win.loc("日光"),   showDot: true, dot: "#ffffff" }
                 ]
                 onPicked: function(k) { if (controller) controller.setAppTheme(k) }
             }
             OptSection {
                 name: win.loc("强调色")
-                desc: win.loc("选中态、指示点、用户气泡与按钮描边的颜色。")
-                current: controller ? controller.accentKey : "warm"
+                desc: win.loc("选中态、指示点与用户气泡的颜色。")
+                current: controller ? controller.accentKey : "neutral"
                 model: [
                     { key: "warm",    label: win.loc("暖米"), showDot: true, dot: "#e8e2d4" },
                     { key: "steel",   label: win.loc("冷钢"), showDot: true, dot: "#aec4d6" },
                     { key: "celadon", label: win.loc("青瓷"), showDot: true, dot: "#aecdb8" },
                     { key: "clay",    label: win.loc("暖砂"), showDot: true, dot: "#e0b48c" },
-                    { key: "neutral", label: win.loc("中性"), showDot: true, dot: "#cfccc4" }
+                    { key: "neutral", label: win.loc("中性"), showDot: true, dot: "#e5e5e5" }
                 ]
                 onPicked: function(k) { if (controller) controller.setAccentKey(k) }
             }
             OptSection {
                 name: win.loc("字体方案")
                 desc: win.loc("标题 / 正文 / 等宽三件套的整体气质。")
-                current: controller ? controller.fontFamilyKey : "editorial"
+                current: controller ? controller.fontFamilyKey : "modern"
                 model: [
                     { key: "editorial", label: win.loc("编辑体") },
                     { key: "modern",    label: win.loc("现代") },
@@ -406,27 +444,25 @@ Popup {
             FieldRow {
                 name: win.loc("界面字号")
                 desc: win.loc("调整整个面板的字号缩放。")
-                Row {
-                    spacing: 0
-                    Rectangle {
-                        width: 30; height: 28; radius: Theme.radSm; color: m1.containsMouse ? Theme.surface : "transparent"
-                        border.width: 1; border.color: Theme.border
-                        Text { anchors.centerIn: parent; text: "−"; color: Theme.text; font.pixelSize: Theme.fMd }
-                        MouseArea { id: m1; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: if (controller) controller.setFontScale(controller.fontScale - 0.1) }
+                RowLayout {
+                    spacing: Theme.sp(4)
+                    IconButton {
+                        objectName: "fontScaleDown"
+                        circular: true; icon: "minus"
+                        tooltip: win.loc("缩小字号")
+                        onClicked: if (controller) controller.setFontScale(controller.fontScale - 0.1)
                     }
-                    Rectangle {
-                        width: 50; height: 28; color: "transparent"; border.width: 1; border.color: Theme.border
-                        Text { anchors.centerIn: parent
-                            text: controller ? Math.round(controller.fontScale * 100) + "%" : "100%"
-                            color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fSm }
+                    Text {
+                        Layout.preferredWidth: Theme.fs(48)
+                        horizontalAlignment: Text.AlignHCenter
+                        text: controller ? Math.round(controller.fontScale * 100) + "%" : "100%"
+                        color: Theme.text; font.family: Theme.fontBody; font.pixelSize: Theme.fSm
                     }
-                    Rectangle {
-                        width: 30; height: 28; radius: Theme.radSm; color: m2.containsMouse ? Theme.surface : "transparent"
-                        border.width: 1; border.color: Theme.border
-                        Text { anchors.centerIn: parent; text: "+"; color: Theme.text; font.pixelSize: Theme.fMd }
-                        MouseArea { id: m2; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: if (controller) controller.setFontScale(controller.fontScale + 0.1) }
+                    IconButton {
+                        objectName: "fontScaleUp"
+                        circular: true; icon: "plus"
+                        tooltip: win.loc("放大字号")
+                        onClicked: if (controller) controller.setFontScale(controller.fontScale + 0.1)
                     }
                 }
             }
@@ -441,7 +477,7 @@ Popup {
             FieldRow {
                 name: win.loc("删除会话前需确认")
                 desc: win.loc("关闭后删除会话不再弹确认框。在删除弹窗里勾选「不再询问」会自动关掉这里——随时可重新打开。")
-                Toggle { on: controller ? controller.askDeleteSession : true
+                Toggle { objectName: "confirmSessionDeleteToggle"; on: controller ? controller.askDeleteSession : true
                     onToggled: if (controller) controller.setAskDeleteSession(!controller.askDeleteSession) }
             }
             FieldRow {
@@ -449,6 +485,99 @@ Popup {
                 desc: win.loc("执行会修改场景或计费的工具前逐个弹确认卡。")
                 Toggle { on: controller ? controller.confirmMode : false
                     onToggled: if (controller) controller.menuAction("confirm") }
+            }
+            FieldRow {
+                name: win.loc("导出对话")
+                Pill { objectName: "settingsExportChat"; label: win.loc("导出"); onClicked: win.action("export") }
+            }
+            FieldRow {
+                name: win.loc("Token 分析")
+                Pill { objectName: "settingsTokenAnalysis"; label: win.loc("查看"); onClicked: win.action("tokens") }
+            }
+            FieldRow {
+                name: win.loc("压缩上下文")
+                Pill { label: win.loc("压缩"); onClicked: win.action("optimize") }
+            }
+            FieldRow {
+                name: win.loc("清空对话")
+                Pill { label: win.loc("清空"); onClicked: win.action("clear") }
+            }
+        }
+    }
+
+    Component {
+        id: cMeshy
+        ColumnLayout {
+            id: meshySettings
+            objectName: "meshySettings"
+            spacing: 0
+            property var account: controller ? controller.meshyAccount() : ({})
+            Connections {
+                target: controller
+                function onMeshyAccountChanged() { meshySettings.account = controller.meshyAccount() }
+            }
+            SectionTitle { text: win.loc("Meshy 账号") }
+            FieldRow {
+                name: meshySettings.account.connected ? win.loc("已连接 Meshy 账号。") : win.loc("未连接")
+                desc: meshySettings.account.connected ? (meshySettings.account.key || "") : win.loc("API Key 是 Meshy 的登录凭证。")
+                Pill {
+                    objectName: "meshyConfigureKey"
+                    label: win.loc("配置 API Key")
+                    onClicked: if (controller) controller.openMeshyLogin()
+                }
+            }
+            FieldRow {
+                name: win.loc("余额")
+                RowLayout {
+                    spacing: Theme.sp(8)
+                    Text {
+                        text: meshySettings.account.balance >= 0 ? meshySettings.account.balance + " credits" : "—"
+                        color: Theme.textDim; font.family: Theme.fontBody; font.pixelSize: Theme.fSm
+                    }
+                    Pill { label: win.loc("刷新"); onClicked: if (controller) controller.syncMeshyAccount() }
+                }
+            }
+            FieldRow {
+                name: win.loc("资产库")
+                desc: win.loc("云资产 · 直接拉到 Houdini")
+                Pill { objectName: "meshyOpenLibrary"; label: win.loc("打开"); onClicked: win.action("library") }
+            }
+            FieldRow {
+                name: win.loc("Meshy · 3D 生成")
+                Pill {
+                    objectName: "meshyStartGeneration"
+                    label: win.loc("开始")
+                    onClicked: { win.close(); if (controller) controller.composePrefill(win.loc("用 Meshy 生成一个 ")) }
+                }
+            }
+            Item { Layout.preferredHeight: Theme.sp(14) }
+            Flow {
+                Layout.fillWidth: true
+                spacing: Theme.sp(6)
+                Repeater {
+                    model: controller ? controller.meshyMenuItems().filter(function(item) { return !item.sep }) : []
+                    delegate: Pill {
+                        required property var modelData
+                        objectName: "meshyLink_" + modelData.val
+                        label: modelData.label
+                        onClicked: if (controller) controller.openMeshy(modelData.val)
+                    }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: cTemplates
+        ColumnLayout {
+            spacing: 0
+            FieldRow {
+                name: win.loc("提示词模板")
+                Pill {
+                    objectName: "settingsOpenTemplates"
+                    label: win.loc("打开")
+                    onClicked: if (controller) controller.openTemplateLibrary()
+                }
             }
         }
     }
@@ -465,7 +594,11 @@ Popup {
             }
             FieldRow {
                 name: win.loc("检查更新")
-                TButton { label: win.loc("检查更新"); onClicked: if (controller) controller.menuAction("update") }
+                TButton { label: win.loc("检查更新"); onClicked: win.action("update") }
+            }
+            FieldRow {
+                name: win.loc("缓存位置")
+                Pill { objectName: "settingsCacheLocation"; label: win.loc("查看"); onClicked: win.action("cache") }
             }
         }
     }
