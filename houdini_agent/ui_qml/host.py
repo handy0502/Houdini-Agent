@@ -4,15 +4,17 @@ QQuickWidget host — embeds the QML UI inside a QWidget so it can live in
 Houdini's PySide widget tree (drop-in replacement for the old AITab widget).
 """
 
+import os
+import sys
 from pathlib import Path
 
 try:
     from PySide6.QtCore import QUrl
-    from PySide6.QtGui import QFont
+    from PySide6.QtGui import QFont, QPalette
     from PySide6.QtQuickWidgets import QQuickWidget
 except ImportError:  # Houdini <= 20.5 (Qt5)
     from PySide2.QtCore import QUrl
-    from PySide2.QtGui import QFont
+    from PySide2.QtGui import QFont, QPalette
     from PySide2.QtQuickWidgets import QQuickWidget
 
 from .controller import ChatModel, Controller
@@ -24,7 +26,7 @@ _FONTS_REGISTERED = False
 
 
 def register_fonts():
-    """Load the bundled Editorial TTFs (fonts/) and set CJK + generic fallbacks."""
+    """Load UI font faces and register CJK / monospace fallbacks."""
     global _FONTS_REGISTERED
     if _FONTS_REGISTERED:
         return
@@ -40,10 +42,27 @@ def register_fonts():
                 QFontDatabase.addApplicationFont(str(p))
             except Exception as e:
                 print("[host] font load failed:", ttf, e)
+    # Offscreen Qt on Windows may not enumerate system fonts. Register the
+    # system faces explicitly in that case so previews retain CJK and UI text.
+    if sys.platform == "win32":
+        families = set(QFontDatabase.families())
+        system_fonts = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts"
+        for family, files in (
+            ("Segoe UI", ("segoeui.ttf", "seguisb.ttf")),
+            ("Microsoft YaHei UI", ("msyh.ttc", "msyhbd.ttc")),
+            ("Consolas", ("consola.ttf",)),
+        ):
+            if family not in families:
+                for name in files:
+                    path = system_fonts / name
+                    if path.exists():
+                        QFontDatabase.addApplicationFont(str(path))
     # CJK + generic fallbacks (the bundled fonts are Latin-only)
     QFont.insertSubstitutions("Fraunces",   ["Georgia", "Microsoft YaHei", "Songti SC", "serif"])
     QFont.insertSubstitutions("Newsreader", ["Georgia", "Microsoft YaHei", "Songti SC", "serif"])
     QFont.insertSubstitutions("Space Mono", ["Consolas", "Courier New", "monospace"])
+    QFont.insertSubstitutions("Segoe UI", ["Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "sans-serif"])
+    QFont.insertSubstitutions("Cascadia Code", ["Consolas", "Microsoft YaHei UI", "monospace"])
     _FONTS_REGISTERED = True
 
 
@@ -103,6 +122,21 @@ def create_view(parent=None, controller=None, model=None):
     ctx.setContextProperty("controller", controller)
     view.setResizeMode(QQuickWidget.SizeRootObjectToView)
     view.setSource(QUrl.fromLocalFile(str(MAIN_QML)))
+    root = view.rootObject()
+    if root is not None:
+        # The native widget and render target must match QML before the first
+        # frame (and when its framebuffer is recreated after a resize).
+        def sync_background():
+            background = root.property("color")
+            view.setClearColor(background)
+            palette = view.palette()
+            palette.setColor(QPalette.Window, background)
+            palette.setColor(QPalette.Base, background)
+            view.setPalette(palette)
+
+        sync_background()
+        root.colorChanged.connect(sync_background)
+        view.setAutoFillBackground(True)
 
     # keep python refs alive
     view._controller = controller

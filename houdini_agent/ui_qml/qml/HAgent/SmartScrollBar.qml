@@ -8,6 +8,7 @@ ScrollBar {
     property int thickness: Math.max(7, Math.round(7 * Theme.scale))
     property int minLength: Math.max(34, Math.round(34 * Theme.scale))
     policy: ScrollBar.AsNeeded
+    visible: policy === ScrollBar.AlwaysOn || (policy === ScrollBar.AsNeeded && size < 0.999)
     interactive: true
     hoverEnabled: true
     minimumSize: 0.06
@@ -16,14 +17,13 @@ ScrollBar {
         implicitWidth: bar.verticalBar ? bar.thickness : bar.minLength
         implicitHeight: bar.verticalBar ? bar.minLength : bar.thickness
         radius: Math.min(width, height) / 2
-        color: bar.pressed ? Theme.accent : bar.hovered ? Theme.textMute : Theme.border
-        opacity: bar.pressed || bar.hovered || bar.active ? 0.95 : 0.48
+        color: bar.pressed ? Theme.scrollThumbPressed : bar.hovered ? Theme.scrollThumbHover : Theme.scrollThumb
+        opacity: bar.pressed || bar.hovered || bar.active ? 0.95 : 0.8
     }
     background: Rectangle {
         implicitWidth: bar.verticalBar ? bar.thickness + 4 : bar.minLength
         implicitHeight: bar.verticalBar ? bar.minLength : bar.thickness + 4
         radius: Math.min(width, height) / 2
-        color: bar.hovered || bar.pressed ? Theme.surface2 : "transparent"
-        opacity: 0.72
+        color: "transparent"
     }
 }

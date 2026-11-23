@@ -13,8 +13,8 @@ Item {
         width: parent.width
         height: inner.implicitHeight
         color: "transparent"
-        border.color: Theme.border
-        border.width: 1
+        border.color: Theme.borderSoft
+        border.width: tb.collapsed ? 0 : 1
         radius: Theme.radSm
 
         Column {
@@ -29,13 +29,13 @@ Item {
                     anchors.left: parent.left; anchors.leftMargin: 13
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 8
-                    Text { text: "✦"; color: Theme.accent; font.pixelSize: Theme.fSm; anchors.verticalCenter: parent.verticalCenter }
+                    AppIcon { name: "spark"; color: Theme.textMute; anchors.verticalCenter: parent.verticalCenter }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "THOUGHT FOR " + (tb.block.dur || "")
+                        text: (controller && controller.lang === "en" ? "Thought for " : "思考用时 ") + (tb.block.dur || "")
                         color: Theme.textDim
-                        font.family: Theme.fontMono
-                        font.pixelSize: Theme.fMicro
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fSm
                         font.letterSpacing: Theme.trackLabel
                     }
                 }

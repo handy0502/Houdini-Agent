@@ -8,6 +8,7 @@ import HAgent
 // 只保留必要信息：已登录 = 账号 + 退出；未登录 = 一句说明 + 两种登录方式；过程提示只在登录中出现。
 Popup {
     id: dlg
+    objectName: "subscriptionDialog"
     property var st: ({})
     property bool loggedIn: !!(st.accounts && st.accounts.length > 0)
     property bool busy: !!st.busy
@@ -26,10 +27,11 @@ Popup {
     parent: Overlay.overlay
     anchors.centerIn: parent
     width: Math.min(440, parent ? parent.width - 36 : 440)
-    padding: 18
+    padding: Theme.panelPadding
     modal: true
+    focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-    background: Rectangle { color: Theme.bg; border.color: Theme.border; border.width: 1; radius: Theme.radSm }
+    background: Rectangle { color: Theme.panel; border.color: Theme.border; border.width: 1; radius: Theme.radMd }
 
     contentItem: ColumnLayout {
         width: dlg.availableWidth

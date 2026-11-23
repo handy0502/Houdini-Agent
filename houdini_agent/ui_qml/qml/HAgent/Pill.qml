@@ -2,10 +2,11 @@ import QtQuick
 import QtQuick.Layouts
 import HAgent
 
-// Generic compact button: chip / toggle / tab base (Editorial = square).
+// Quiet compact button shared by selectors, toggles, and actions.
 Item {
     id: pill
     property string label: ""
+    property string detail: ""
     property bool active: false
     property bool caret: false
     property bool accent: false
@@ -14,18 +15,16 @@ Item {
     property bool elideLabel: false   // 标签随宽度省略号截断（用于可收缩布局）
     signal clicked()
 
-    implicitHeight: Math.round(28 * Theme.scale)
+    implicitHeight: Theme.controlHeight
     implicitWidth: row.implicitWidth + 22
 
     Rectangle {
         id: bg
+        objectName: "pillBackground"
         anchors.fill: parent
-        radius: Theme.radSm
+        radius: height / 2
         color: pill.active ? Theme.accentSoft : (ma.containsMouse ? Theme.surface : "transparent")
-        border.width: 1
-        border.color: pill.active ? Theme.accentLine
-                     : pill.dashed ? Theme.border
-                     : (ma.containsMouse ? Theme.border : "transparent")
+        border.width: 0
         Behavior on color { ColorAnimation { duration: 120 } }
     }
 
@@ -45,10 +44,18 @@ Item {
             elide: pill.elideLabel ? Text.ElideRight : Text.ElideNone
         }
         Text {
-            visible: pill.caret
-            text: "▾"
+            visible: pill.detail.length > 0
+            text: pill.detail
             color: Theme.textMute
-            font.pixelSize: Theme.fMicro
+            font.family: Theme.fontBody
+            font.pixelSize: Theme.fSm
+        }
+        AppIcon {
+            visible: pill.caret
+            name: "chevronDown"
+            Layout.preferredWidth: Theme.fs(13)
+            Layout.preferredHeight: Theme.fs(13)
+            color: Theme.textMute
         }
     }
 

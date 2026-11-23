@@ -9,25 +9,28 @@ ColumnLayout {
     property string label: ""
     property string placeholder: ""
     property bool password: false
-    spacing: 5
+    spacing: Theme.sp(6)
 
     Text {
         text: root.label
         color: Theme.textDim
-        font.family: Theme.fontMono
-        font.pixelSize: Theme.fMicro
+        font.family: Theme.fontBody
+        font.pixelSize: Theme.fXs
     }
     TextField {
         id: field
         Layout.fillWidth: true
+        Layout.preferredHeight: Theme.fieldHeight
+        verticalAlignment: TextInput.AlignVCenter
+        leftPadding: Theme.fs(10); rightPadding: Theme.fs(10)
         echoMode: root.password ? TextInput.Password : TextInput.Normal
         color: Theme.textBright
         placeholderText: root.placeholder
         placeholderTextColor: Theme.textMute
-        font.family: Theme.fontMono
+        font.family: Theme.fontBody
         font.pixelSize: Theme.fSm
         background: Rectangle {
-            color: Theme.surface
+            color: Theme.fieldBg
             border.color: field.activeFocus ? Theme.accentLine : Theme.border
             border.width: 1
             radius: Theme.radSm

@@ -11,6 +11,36 @@ Item {
     property var customs: []
     property var builtins: []
     property string editingId: ""      // "" 列表态；"new" 新增；其余为编辑某 id
+    readonly property real selectColumnWidth: Math.ceil(Math.max(useMetrics.width, currentMetrics.width)) + 22
+    readonly property real configColumnWidth: Math.ceil(Math.max(apiMetrics.width, loginMetrics.width, editMetrics.width)) + 22
+
+    TextMetrics { id: useMetrics; text: pm.loc("使用"); font.family: Theme.fontBody; font.pixelSize: Theme.fSm }
+    TextMetrics { id: currentMetrics; text: pm.loc("当前"); font.family: Theme.fontBody; font.pixelSize: Theme.fSm }
+    TextMetrics { id: apiMetrics; text: "API Key"; font.family: Theme.fontBody; font.pixelSize: Theme.fSm }
+    TextMetrics { id: loginMetrics; text: pm.loc("订阅登录"); font.family: Theme.fontBody; font.pixelSize: Theme.fSm }
+    TextMetrics { id: editMetrics; text: pm.loc("编辑"); font.family: Theme.fontBody; font.pixelSize: Theme.fSm }
+
+    component ActionColumn: Item {
+        id: actionColumn
+        property string label: ""
+        property bool readOnly: false
+        signal clicked()
+        implicitHeight: Theme.controlHeight
+        Layout.minimumWidth: implicitWidth
+        Layout.maximumWidth: implicitWidth
+        Pill {
+            anchors.centerIn: parent
+            visible: !actionColumn.readOnly
+            label: actionColumn.label
+            onClicked: actionColumn.clicked()
+        }
+        Text {
+            anchors.centerIn: parent
+            visible: actionColumn.readOnly
+            text: actionColumn.label; color: Theme.accent
+            font.family: Theme.fontBody; font.pixelSize: Theme.fSm
+        }
+    }
 
     // 编辑态字段
     property string fName: ""
@@ -71,51 +101,44 @@ Item {
         // 仅在用户实际编辑时触发；用它做写回可避免与 text: <model> 的绑定形成回环。
         signal textEdited()
         implicitWidth: Math.round(120 * Theme.scale)
-        implicitHeight: Math.round(34 * Theme.scale)
-        radius: Theme.radSm; color: Theme.surface
+        implicitHeight: Theme.fieldHeight
+        radius: Theme.radSm; color: Theme.fieldBg
         border.width: 1; border.color: inp.activeFocus ? Theme.accentLine : Theme.border
         TextField {
             id: inp
-            anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10
+            objectName: fieldRoot.objectName + "_input"
+            anchors.fill: parent
+            leftPadding: Theme.fs(10); rightPadding: Theme.fs(10)
             verticalAlignment: TextInput.AlignVCenter
             echoMode: parent.password ? TextInput.Password : TextInput.Normal
             placeholderText: parent.placeholder
             placeholderTextColor: Theme.textMute
             color: Theme.text
-            font.family: Theme.fontMono; font.pixelSize: Theme.fSm
+            font.family: Theme.fontBody; font.pixelSize: Theme.fSm
             background: null
             onTextEdited: fieldRoot.textEdited()
         }
     }
     component FieldLabel: Text {
-        color: Theme.textDim; font.family: Theme.fontMono; font.pixelSize: Theme.fMicro
-        font.letterSpacing: Theme.trackLabel; bottomPadding: 5; topPadding: 12
+        color: Theme.textDim; font.family: Theme.fontBody; font.pixelSize: Theme.fXs
+        bottomPadding: Theme.sp(6); topPadding: Theme.sp(12)
     }
-    component MiniToggle: Rectangle {
-        property bool on: false
-        signal toggled()
-        width: 34; height: 19; radius: 10
-        color: on ? Theme.accentSoft : Theme.surface2
-        border.width: 1; border.color: on ? Theme.accentLine : Theme.border
-        Rectangle { y: 1; x: parent.on ? 16 : 1; width: 15; height: 15; radius: 7.5
-            color: parent.on ? Theme.accent : Theme.textMute
-            Behavior on x { NumberAnimation { duration: 120 } } }
-        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: parent.toggled() }
-    }
+    component MiniToggle: ToggleSwitch {}
     component DotChip: Rectangle {
         property bool on: false
-        width: 6; height: 6; radius: 3
+        width: Theme.fs(6); height: width; radius: width / 2
         color: on ? Theme.ok : Theme.textMute
     }
 
     // ====== 列表态 ======
-    ScrollView {
+    PanelScrollView {
+        id: providerScroll
         anchors.fill: parent
         visible: pm.editingId === ""
         clip: true
         contentWidth: availableWidth
         ColumnLayout {
-            width: pm.width
+            width: providerScroll.availableWidth
             spacing: 0
 
             Text {
@@ -150,16 +173,23 @@ Item {
                     radius: Theme.radSm
                     color: bma.containsMouse ? Theme.surface : "transparent"
                     RowLayout {
-                        anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 9
+                        anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 8; spacing: 9
                         DotChip { on: true }
-                        Text { Layout.fillWidth: true; text: modelData.name; color: Theme.text
+                        Text { Layout.fillWidth: true; Layout.minimumWidth: 0; text: modelData.name; color: Theme.text
                                font.family: Theme.fontBody; font.pixelSize: Theme.fSm; elide: Text.ElideRight }
-                        Text { visible: modelData.active; text: pm.loc("当前"); color: Theme.accent
-                               font.family: Theme.fontMono; font.pixelSize: Theme.fMicro; font.letterSpacing: Theme.trackLabel }
-                        Pill { visible: !modelData.active; label: pm.loc("使用")
-                               onClicked: if (controller) controller.selectProviderModel(modelData.key, "") }
-                        Pill { label: (modelData.key === "codex" || modelData.key === "claude_sub") ? pm.loc("订阅登录") : "API Key"
-                               onClicked: if (controller) controller.openProviderApiKey(modelData.key) }
+                        ActionColumn {
+                            objectName: "providerSelect_" + modelData.key
+                            implicitWidth: pm.selectColumnWidth
+                            label: modelData.active ? pm.loc("当前") : pm.loc("使用")
+                            readOnly: modelData.active
+                            onClicked: if (controller) controller.selectProviderModel(modelData.key, "")
+                        }
+                        ActionColumn {
+                            objectName: "providerConfig_" + modelData.key
+                            implicitWidth: pm.configColumnWidth
+                            label: (modelData.key === "codex" || modelData.key === "claude_sub") ? pm.loc("订阅登录") : "API Key"
+                            onClicked: if (controller) controller.openProviderApiKey(modelData.key)
+                        }
                     }
                     MouseArea { id: bma; anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton }
                 }
@@ -182,33 +212,40 @@ Item {
                     Layout.bottomMargin: 6
                     implicitHeight: Math.round(52 * Theme.scale)
                     radius: Theme.radSm
-                    color: Theme.surface
-                    border.width: 1; border.color: modelData.active ? Theme.accentLine : Theme.border
+                    color: modelData.active ? Theme.surface2 : Theme.surface
                     RowLayout {
                         anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 8; spacing: 9
                         DotChip { on: modelData.configured }
                         ColumnLayout {
-                            Layout.fillWidth: true; spacing: 1
+                            Layout.fillWidth: true; Layout.minimumWidth: 0; spacing: 1
                             Text { text: modelData.name; color: Theme.text; font.family: Theme.fontBody
                                    font.pixelSize: Theme.fSm; elide: Text.ElideRight; Layout.fillWidth: true }
                             Text { text: modelData.models.length + " " + pm.loc("模型列表") + (modelData.anthropic ? " · Anthropic" : " · OpenAI")
                                    color: Theme.textMute; font.family: Theme.fontMono; font.pixelSize: Theme.fMicro
                                    elide: Text.ElideRight; Layout.fillWidth: true }
                         }
-                        Text { visible: modelData.active; text: pm.loc("当前"); color: Theme.accent
-                               font.family: Theme.fontMono; font.pixelSize: Theme.fMicro; font.letterSpacing: Theme.trackLabel }
-                        Pill { visible: !modelData.active; label: pm.loc("使用")
-                               onClicked: if (controller) controller.selectProviderModel("custom:" + modelData.id, "") }
-                        Pill { label: pm.loc("编辑"); onClicked: pm.startEdit(modelData) }
+                        ActionColumn {
+                            objectName: "providerSelect_custom:" + modelData.id
+                            implicitWidth: pm.selectColumnWidth
+                            label: modelData.active ? pm.loc("当前") : pm.loc("使用")
+                            readOnly: modelData.active
+                            onClicked: if (controller) controller.selectProviderModel("custom:" + modelData.id, "")
+                        }
+                        ActionColumn {
+                            objectName: "providerConfig_custom:" + modelData.id
+                            implicitWidth: pm.configColumnWidth
+                            label: pm.loc("编辑")
+                            onClicked: pm.startEdit(modelData)
+                        }
                     }
                 }
             }
 
             Rectangle {
+                objectName: "addProviderButton"
                 Layout.fillWidth: true; Layout.topMargin: 6
                 implicitHeight: Math.round(38 * Theme.scale)
                 radius: Theme.radSm; color: addMa.containsMouse ? Theme.accentSoft : "transparent"
-                border.width: 1; border.color: Theme.border
                 RowLayout {
                     anchors.centerIn: parent; spacing: 7
                     Text { text: "+"; color: Theme.accent; font.pixelSize: Theme.fMd }
@@ -236,7 +273,7 @@ Item {
             Pill { label: pm.loc("取消"); onClicked: pm.editingId = "" }
         }
 
-        ScrollView {
+        PanelScrollView {
             id: editScroll
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -275,37 +312,54 @@ Item {
                     FieldLabel { text: pm.loc("模型列表") }
                     Repeater {
                         model: modelModel
-                        delegate: RowLayout {
+                        delegate: GridLayout {
                             required property int index
                             required property var model
+                            objectName: "providerModelRow_" + index
                             Layout.fillWidth: true
-                            Layout.bottomMargin: 6
-                            spacing: 6
-                            Field {
+                            Layout.bottomMargin: Theme.sp(12)
+                            columns: width < Theme.fs(380) ? 3 : 4
+                            columnSpacing: Theme.sp(8); rowSpacing: Theme.sp(8)
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                text: model.mname; placeholder: pm.loc("模型名")
-                                onTextEdited: modelModel.setProperty(index, "mname", text)
-                            }
-                            Field {
-                                Layout.preferredWidth: Math.round(78 * Theme.scale)
-                                Layout.fillWidth: false
-                                text: model.ctx; placeholder: pm.loc("上下文窗口")
-                                onTextEdited: modelModel.setProperty(index, "ctx", text)
+                                Layout.columnSpan: parent.columns === 3 ? 3 : 1
+                                spacing: Theme.sp(5)
+                                Text { text: pm.loc("模型名"); color: Theme.textDim; font.family: Theme.fontBody; font.pixelSize: Theme.fXs }
+                                Field {
+                                    objectName: "providerModelName_" + index
+                                    Layout.fillWidth: true
+                                    text: model.mname; placeholder: pm.loc("模型名")
+                                    onTextEdited: modelModel.setProperty(index, "mname", text)
+                                }
                             }
                             ColumnLayout {
-                                spacing: 2
-                                Text { text: pm.loc("图片"); color: Theme.textMute; font.family: Theme.fontMono
-                                       font.pixelSize: Theme.fMicro; Layout.alignment: Qt.AlignHCenter }
-                                MiniToggle { on: model.vis === true; onToggled: modelModel.setProperty(index, "vis", !(model.vis === true)) }
+                                Layout.fillWidth: parent.columns === 3
+                                Layout.preferredWidth: Theme.fs(108)
+                                spacing: Theme.sp(5)
+                                Text { text: pm.loc("上下文窗口"); color: Theme.textDim; font.family: Theme.fontBody; font.pixelSize: Theme.fXs }
+                                Field {
+                                    Layout.fillWidth: true
+                                    text: model.ctx; placeholder: pm.loc("上下文窗口")
+                                    onTextEdited: modelModel.setProperty(index, "ctx", text)
+                                }
                             }
-                            Rectangle {
-                                Layout.preferredWidth: 24; Layout.preferredHeight: 24
-                                radius: Theme.radSm; color: rmMa.containsMouse ? Qt.rgba(0.867, 0.6, 0.6, 0.14) : "transparent"
-                                TrashIcon { anchors.centerIn: parent; size: Math.round(13 * Theme.scale)
-                                            color: rmMa.containsMouse ? Theme.err : Theme.textMute }
-                                MouseArea { id: rmMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                    onClicked: if (modelModel.count > 1) modelModel.remove(index)
-                                               else modelModel.setProperty(index, "mname", "") }
+                            ColumnLayout {
+                                spacing: Theme.sp(5)
+                                Text { text: pm.loc("图片"); color: Theme.textDim; font.family: Theme.fontBody; font.pixelSize: Theme.fXs }
+                                MiniToggle {
+                                    objectName: "providerVisionToggle_" + index
+                                    Accessible.name: pm.loc("支持图片输入")
+                                    Layout.preferredHeight: Theme.fieldHeight
+                                    on: model.vis === true
+                                    onToggled: modelModel.setProperty(index, "vis", checked)
+                                }
+                            }
+                            IconButton {
+                                objectName: "removeProviderModel_" + index
+                                Layout.alignment: Qt.AlignBottom | Qt.AlignRight
+                                icon: "close"; tooltip: pm.loc("移除模型"); circular: true
+                                onClicked: if (modelModel.count > 1) modelModel.remove(index)
+                                           else modelModel.setProperty(index, "mname", "")
                             }
                         }
                     }
@@ -313,7 +367,6 @@ Item {
                         Layout.fillWidth: true
                         implicitHeight: Math.round(32 * Theme.scale)
                         radius: Theme.radSm; color: addmMa.containsMouse ? Theme.surface : "transparent"
-                        border.width: 1; border.color: Theme.border
                         Text { anchors.centerIn: parent; text: "+ " + pm.loc("添加模型"); color: Theme.textDim
                                font.family: Theme.fontMono; font.pixelSize: Theme.fXs }
                         MouseArea { id: addmMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -332,7 +385,7 @@ Item {
             }
             Item { Layout.fillWidth: true }
             Pill { label: pm.loc("取消"); onClicked: pm.editingId = "" }
-            Pill { label: pm.loc("保存"); accent: true; onClicked: pm.submit() }
+            Pill { objectName: "saveProviderButton"; label: pm.loc("保存"); accent: true; onClicked: pm.submit() }
         }
     }
 }

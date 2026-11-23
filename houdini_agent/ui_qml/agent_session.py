@@ -124,7 +124,13 @@ class AgentSession:
             on_tool_args_delta=callbacks.get("on_tool_args_delta"),
             on_iteration_start=callbacks.get("on_iteration_start"),
         )
-        self._absorb(result)
+        # A rejected request produced no conversation or tool work. Do not keep
+        # an unanswered duplicate in model context when the draft is re-sent.
+        if (not result.get("ok") and not result.get("new_messages")
+                and not result.get("final_content") and not result.get("content")):
+            self.history.pop()
+        else:
+            self._absorb(result)
         return result
 
     def _absorb(self, result):

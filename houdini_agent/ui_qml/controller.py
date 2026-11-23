@@ -255,7 +255,7 @@ UI_EN = {
     "删除": "Delete", "打开插件目录": "Open plugins folder",
     # 设置浮窗 + 会话管理（方案A）
     "设置…": "Settings…", "设置": "Settings", "常规": "General", "扩展": "Extensions",
-    "外观与字号": "Appearance & font", "会话": "Sessions", "模型与 Provider": "Model & Provider",
+    "外观": "Appearance", "会话": "Sessions", "模型与 Provider": "Model & Provider",
     "规则": "Rules", "插件": "Plugins", "记忆": "Memory", "关于": "About",
     "搜索会话…": "Search sessions…", "没有匹配的会话": "No matching sessions",
     "删除会话": "Delete session", "此操作无法撤销。": "This can't be undone.",
@@ -300,8 +300,13 @@ UI_EN = {
     "主题": "Theme", "强调色": "Accent", "字体方案": "Typeface", "界面密度": "Density",
     "深色三档，外加日光（浅色）。选日光会整体翻成浅色，强调色自动加深保证可读。":
         "Three dark tones plus Daylight (light). Daylight flips everything light and darkens the accent so it stays readable.",
-    "选中态、指示点、用户气泡与按钮描边的颜色。":
-        "Color for selection, dots, your message bubble and button outlines.",
+    "选中态、指示点与用户气泡的颜色。":
+        "Color for selection, dots and your message bubble.",
+    "创作": "Create", "导出": "Export", "查看": "View", "压缩": "Compact", "清空": "Clear", "开始": "Start",
+    "配置 API Key": "Configure API Key",
+    "返回设置": "Back to settings",
+    "API Key 是 Meshy 的登录凭证。": "Connect using your Meshy API key.",
+    "支持图片输入": "Image input", "缩小字号": "Decrease font size", "放大字号": "Increase font size",
     "标题 / 正文 / 等宽三件套的整体气质。": "The display / body / mono pairing for the whole UI.",
     "间距与行高的松紧，不改字号。": "How tight the spacing and line height feel — font size unchanged.",
     "极夜": "Noir", "石墨": "Graphite", "午夜蓝": "Midnight", "日光": "Daylight",
@@ -566,7 +571,11 @@ class Controller(QObject):
     updateAvailableChanged = Signal()
     toast = Signal(str)                   # transient message
     prefillComposer = Signal(str)         # text -> 预填输入框并聚焦（库里"+用 Meshy 生成"）
-    requestOpenHoudini = Signal()         # 断开时请求外部协调器弹启动器/重连 Houdini
+    restoreFailedDraft = Signal(str)
+    requestOpenHoudini = Signal()
+    requestHoudiniAction = Signal(str)
+    openHoudiniMenu = Signal()
+    houdiniConnectionChanged = Signal()
     openFontDialog = Signal()             # request the font-size slider popup
     openTokenDialog = Signal()            # request the token analytics popup (QML)
     openInfoDialog = Signal(str, str)      # title, body (QML)
@@ -632,9 +641,9 @@ class Controller(QObject):
         self._cook_suspended = False     # set when a cook is interrupted/too slow (per run)
         self._font_scale = 1.0
         # 外观（主题/强调色/字体方案/密度）——驱动 Theme.qml 换肤
-        self._app_theme = "noir"          # noir | graphite | midnight | day
-        self._accent_key = "warm"         # warm | steel | celadon | clay | neutral
-        self._font_family_key = "editorial"  # editorial | modern | mono
+        self._app_theme = "graphite"      # noir | graphite | midnight | day
+        self._accent_key = "neutral"      # warm | steel | celadon | clay | neutral
+        self._font_family_key = "modern"  # editorial | modern | mono
         self._density_key = "normal"      # compact | normal | roomy
         self._my_templates = []           # 用户自存模板（templates.json）
         self._scene_path = "/obj"
@@ -644,6 +653,7 @@ class Controller(QObject):
         self._last_attached_images = []  # 本轮用户附带图片(data URI)，供 meshy 图生图回退
         self._interactive = {}      # cid/qid -> queue.Queue (confirm / ask_question)
         self._confirm_actions = {}  # token -> callable
+        self._session_delete_confirms = set()
         self._int_seq = 0
         # Meshy 云资产库（侧滑抽屉）
         self._library_open = False
@@ -707,12 +717,22 @@ class Controller(QObject):
             pass
 
         # backend
+        self._houdini_connection = {
+            "state": "disconnected", "version": "", "port": 0,
+            "sessions": [], "installs": [], "busy": False, "external": False, "paused": False,
+        }
         self._session = None
         if use_backend:
             try:
                 from houdini_agent.ui_qml.agent_session import AgentSession
                 self._session = AgentSession()
                 self._session.set_tool_executor(self._tool_executor)
+                self._houdini_connection["state"] = "embedded"
+                try:
+                    import hou
+                    self._houdini_connection["version"] = hou.applicationVersionString()
+                except Exception:
+                    pass
             except Exception as e:
                 print("[controller] backend unavailable, using simulated replies:", e)
                 self._session = None
@@ -938,13 +958,23 @@ class Controller(QObject):
             except Exception:
                 pass
             # 外观（带白名单校验，挡掉脏值）
-            t = str(s.value("app_theme", "noir") or "noir")
+            t = str(s.value("app_theme", "graphite") or "graphite")
             if t in ("noir", "graphite", "midnight", "day"):
                 self._app_theme = t
-            a = str(s.value("accent_key", "warm") or "warm")
+            a = str(s.value("accent_key", "neutral") or "neutral")
             if a in ("warm", "steel", "celadon", "clay", "neutral"):
                 self._accent_key = a
-            f = str(s.value("font_family_key", "editorial") or "editorial")
+            f = str(s.value("font_family_key", "modern") or "modern")
+            # Apply the new neutral defaults once for the legacy default look.
+            # Custom theme/accent/font combinations remain intact.
+            if not s.value("ui_style_revision", ""):
+                if (t, a, f) == ("noir", "warm", "editorial"):
+                    t, a, f = "graphite", "neutral", "modern"
+                    self._app_theme, self._accent_key = t, a
+                    s.setValue("app_theme", t)
+                    s.setValue("accent_key", a)
+                    s.setValue("font_family_key", f)
+                s.setValue("ui_style_revision", 1)
             if f in ("editorial", "modern", "mono"):
                 self._font_family_key = f
             d = str(s.value("density_key", "normal") or "normal")
@@ -977,6 +1007,33 @@ class Controller(QObject):
 
     def _get_model(self): return self._model_name
     model = Property(str, _get_model, notify=modelChanged)
+
+    @Slot(str, result=str)
+    def modelNameLabel(self, model):
+        brands = {"gpt": "GPT", "glm": "GLM", "openai": "OpenAI", "deepseek": "DeepSeek"}
+        return "".join(
+            brands.get(part.lower(), part[:1].upper() + part[1:].lower())
+            for part in re.split(r"([/\s_-])", model or "")
+        )
+
+    def _get_model_display_name(self): return self.modelNameLabel(self._model_name)
+    modelDisplayName = Property(str, _get_model_display_name, notify=modelChanged)
+
+    def _get_houdini_connection(self): return dict(self._houdini_connection)
+    houdiniConnection = Property("QVariantMap", _get_houdini_connection, notify=houdiniConnectionChanged)
+
+    def update_houdini_connection(self, **values):
+        current = dict(self._houdini_connection, **values)
+        if current != self._houdini_connection:
+            self._houdini_connection = current
+            self.houdiniConnectionChanged.emit()
+
+    @Slot(str)
+    def houdiniAction(self, action):
+        if action != "refresh" and self._running:
+            self.toast.emit("请等待当前任务完成后再切换或启动 Houdini。")
+            return
+        self.requestHoudiniAction.emit(action)
 
     def _get_show_thinking(self): return self._show_thinking
     showThinking = Property(bool, _get_show_thinking, notify=showThinkingChanged)
@@ -1050,6 +1107,13 @@ class Controller(QObject):
         except Exception:
             pass
         self.effortChanged.emit()
+
+    @Slot()
+    def resetReasoningEffort(self):
+        if not self._effort_levels():
+            return
+        from houdini_agent.subscription import default_effort
+        self.setReasoningEffort(default_effort(self._sub_kind(), self._model_name))
 
     def _get_running(self): return self._running
     running = Property(bool, _get_running, notify=runningChanged)
@@ -1258,7 +1322,7 @@ class Controller(QObject):
     @Slot(result="QVariantList")
     def modelItems(self):
         models = self._provider_model_names(self._provider)
-        items = [{"label": m, "val": m, "checked": m == self._model_name} for m in models]
+        items = [{"label": self.modelNameLabel(m), "val": m, "checked": m == self._model_name} for m in models]
         kind = self._sub_kind()
         if kind:
             accs = []
@@ -1978,14 +2042,21 @@ class Controller(QObject):
         except Exception as e:
             print("[controller] info:", title, text, e)
 
-    def _request_confirm(self, title, body, fn):
+    def _request_confirm(self, title, body, fn, *, session_delete=False):
         token = uuid.uuid4().hex[:10]
         self._confirm_actions[token] = fn
+        if session_delete:
+            self._session_delete_confirms.add(token)
         self.openConfirmDialog.emit(self.tr(title), str(body), token)
+
+    @Slot(str, result=bool)
+    def isSessionDeleteConfirmation(self, token):
+        return token in self._session_delete_confirms
 
     @Slot(str)
     def acceptDialogConfirm(self, token):
         fn = self._confirm_actions.pop(token, None)
+        self._session_delete_confirms.discard(token)
         if fn:
             try:
                 fn()
@@ -1995,6 +2066,7 @@ class Controller(QObject):
     @Slot(str)
     def cancelDialogConfirm(self, token):
         self._confirm_actions.pop(token, None)
+        self._session_delete_confirms.discard(token)
 
     @Slot(result="QVariantList")
     def rulesItems(self):
@@ -2827,7 +2899,7 @@ class Controller(QObject):
             return
         title = self._sessions[idx].get("title", "当前会话")
         self._request_confirm("关闭会话", "确定要关闭「%s」吗？该会话会从本地历史中移除。" % title,
-                              lambda idx=idx: self._close_session_now(idx))
+                              lambda idx=idx: self._close_session_now(idx), session_delete=True)
 
     def _close_session_now(self, idx):
         if idx < 0 or idx >= len(self._sessions) or len(self._sessions) <= 1:
@@ -2885,6 +2957,50 @@ class Controller(QObject):
     @Slot(result="QVariantList")
     def pendingImageUris(self):
         return ["data:%s;base64,%s" % (mt, b64) for (b64, mt) in self._pending_images]
+
+    @Slot(str, result=bool)
+    def restoreFailedMessage(self, request_id):
+        """Restore a failed send as an editable draft, preserving existing attachments."""
+        if self._running or not request_id:
+            return False
+        payload = next((item.get("payload", {}) for item in self._model._items
+                        if item.get("type") == "user"
+                        and item.get("payload", {}).get("id") == request_id
+                        and item.get("payload", {}).get("failed")), None)
+        if payload is None:
+            return False
+        from urllib.parse import urlsplit
+        from urllib.request import url2pathname
+        missing = False
+        for src in payload.get("images", []) or []:
+            try:
+                if src.startswith("data:image/"):
+                    header, b64 = src.split(",", 1)
+                    mt = header[5:].split(";", 1)[0]
+                    if not header.endswith(";base64") or mt not in self._IMG_EXT:
+                        raise ValueError("unsupported attachment")
+                    base64.b64decode(b64, validate=True)
+                else:
+                    url = urlsplit(src)
+                    if url.scheme != "file" or url.netloc:
+                        raise ValueError("nonlocal attachment")
+                    path = Path(url2pathname(url.path)).resolve()
+                    path.relative_to(self._image_dir().resolve())
+                    mt = next((mime for mime, ext in self._IMG_EXT.items()
+                               if ext == path.suffix.lower()), None)
+                    if not mt:
+                        raise ValueError("unsupported attachment")
+                    b64 = base64.b64encode(path.read_bytes()).decode("ascii")
+                image = (b64, mt)
+                if image not in self._pending_images:
+                    self._pending_images.append(image)
+            except (ValueError, OSError, TypeError, AttributeError):
+                missing = True
+        self.imagesChanged.emit()
+        self.restoreFailedDraft.emit(payload.get("text", ""))
+        if missing:
+            self.toast.emit("原消息已返回输入框，部分附件已丢失，请重新添加")
+        return True
 
     @Slot(int)
     def removeImage(self, idx):
@@ -3094,6 +3210,8 @@ class Controller(QObject):
     def _houdini_connected(self):
         """会话存在且 Bridge 仍可达。独立 exe 下关闭 Houdini 后 _session 可能仍在、
         但 bridge 已断，故用一次 ping 作为"是否真连着"的可靠信号；进程内会话无 bridge，视为已连。"""
+        if getattr(self, "_houdini_connection", {}).get("paused"):
+            return False
         s = self._session
         if not s:
             return False
@@ -3106,9 +3224,9 @@ class Controller(QObject):
             return False
 
     def _prompt_open_houdini(self, what):
-        """断开时引导用户打开 Houdini：说明情况 + 请求弹启动器（外部 exe 由协调器接住）。"""
+        """Show connection controls without opening a blocking launcher."""
         try:
-            self.toast.emit(self.tr("Houdini 未连接，%s 需要先连接 Houdini，正在打开启动器…") % what)
+            self.toast.emit("Houdini 未连接，%s 需要先连接 Houdini，请使用右上角的连接菜单。" % what)
         except Exception:
             pass
         try:
@@ -3243,7 +3361,7 @@ class Controller(QObject):
 
     @Slot(result="QVariantList")
     def meshyMenuItems(self):
-        """顶栏 Meshy 按钮的下拉项（val 传给 openMeshy）。"""
+        """设置内 Meshy 分区的网页入口（val 传给 openMeshy）。"""
         t = self.tr
         return [
             {"label": t("打开 Meshy 官网"), "val": "home"},
@@ -3365,6 +3483,11 @@ class Controller(QObject):
 
     @Slot()
     def refreshContext(self):
+        if getattr(self, "_houdini_connection", {}).get("paused"):
+            self._scene_path = "/obj"
+            self._scene_sel = "Houdini 已断开"
+            self.sceneChanged.emit()
+            return
         try:
             import hou
             net = None
@@ -3422,7 +3545,7 @@ class Controller(QObject):
         images = self._pending_images if supports_vision else []
         if self._pending_images and not supports_vision:
             self.toast.emit("当前模型不支持图片输入，本次只发送文本（但图片仍可用于 Meshy 图生图）")
-        payload = {"text": text}
+        payload = {"text": text, "id": uuid.uuid4().hex, "sent_at": time.time()}
         # 在用户气泡里显示附带的缩略图（无论模型是否支持视觉，用户都该看到自己上传了什么）
         if self._pending_images:
             payload["images"] = [self._externalize_image("data:%s;base64,%s" % (mt, b64))
@@ -3445,6 +3568,9 @@ class Controller(QObject):
         return True
 
     def _start_run(self, user_text, tools, max_iter, images=None):
+        last = self._model._items[-1] if self._model._items else {}
+        payload = last.get("payload", {})
+        self._run_message_id = payload.get("id") if last.get("type") == "user" and payload.get("text") == user_text else None
         self._bm = BlockModel()
         self._ai_row = self._model.append({"type": "ai", "payload": {"bm": self._bm}})
         self._reset_run_state()
@@ -3526,6 +3652,8 @@ class Controller(QObject):
     def _heal_bridge(self):
         """ping 失败后的静默自愈：扫描候选端口找活着的 Bridge 并固化端口。
         运行在工具执行线程（localhost 扫描 <1 秒），成功后刷新上下文条。"""
+        if getattr(self, "_houdini_connection", {}).get("paused"):
+            return False
         try:
             from houdini_agent.bridge import doctor
             port, _info = doctor.ensure_connected(heartbeat=self._touch_activity)
@@ -3538,6 +3666,8 @@ class Controller(QObject):
 
     def _run_connection_tool(self, tool_name, kwargs):
         """check_houdini_connection / repair_houdini_connection：app 侧执行。"""
+        if getattr(self, "_houdini_connection", {}).get("paused"):
+            return {"success": False, "error": "Houdini 已手动断开，请从右上角连接菜单重新连接。"}
         if getattr(self._session, "bridge", None) is None:
             return {"success": True,
                     "result": "当前直接运行在 Houdini 进程内，不经过 Bridge，无需连接诊断。"}
@@ -3779,6 +3909,8 @@ class Controller(QObject):
                     pass
             return res
         if getattr(self._session, "bridge", None) is not None:
+            if getattr(self, "_houdini_connection", {}).get("paused"):
+                return {"success": False, "error": "Houdini 已手动断开，请从右上角连接菜单重新连接。"}
             # 断连自愈：Bridge 可能换了端口（Houdini 重启/端口被占顺延/发现文件过期），
             # 全端口扫一遍再判死刑。ensure_connected 找到后固化端口，本次调用直接继续。
             if self._session.bridge.ping() is None and not self._heal_bridge():
@@ -4954,6 +5086,8 @@ class Controller(QObject):
         if sess is None:
             return {"success": False, "error": "无会话"}
         if getattr(sess, "bridge", None) is not None:
+            if getattr(self, "_houdini_connection", {}).get("paused"):
+                return {"success": False, "error": "Houdini 已手动断开，请从右上角连接菜单重新连接。"}
             if sess.bridge.ping() is None:
                 return {"success": False, "error": _BRIDGE_LOST_MSG}
             try:
@@ -5807,7 +5941,7 @@ class Controller(QObject):
         if not self._session:
             return
         self._plan_phase = "executing"
-        self._model.append({"type": "user", "payload": {"text": "▶ 执行计划"}})
+        self._model.append({"type": "user", "payload": {"text": "▶ 执行计划", "sent_at": time.time()}})
         plan_json = ""
         try:
             plan_json = json.dumps(self._plan_payload or {}, ensure_ascii=False, default=str)
@@ -5925,7 +6059,7 @@ class Controller(QObject):
             return False
         self._plan_revision_mode = True
         self._plan_phase = "planning"
-        self._model.append({"type": "user", "payload": {"text": "✎ 修改计划：" + instruction}})
+        self._model.append({"type": "user", "payload": {"text": "✎ 修改计划：" + instruction, "sent_at": time.time()}})
         prompt = (
             "用户对当前计划提出局部修改要求。请不要重新发散设计，不要生成多份方案。"
             "你必须基于原计划做最小必要修改，保留不相关步骤、step id、依赖关系和 DAG。"
@@ -6231,9 +6365,14 @@ class Controller(QObject):
                 self._pending_plan_confirm = False
                 self.planConfirmFailed.emit(str(err))
             hint = self._sub_error_hint(err)
-            self._blocks.append({"kind": "prose",
-                                 "html": "<span style='color:#dd9999'>错误：" + _esc(err) + "</span>"
-                                         + ("<br><span style='color:#c9b27c'>" + _esc(hint) + "</span>" if hint else "")})
+            request_id = getattr(self, "_run_message_id", None)
+            for row, item in enumerate(self._model._items):
+                payload = item.get("payload", {})
+                if item.get("type") == "user" and request_id and payload.get("id") == request_id:
+                    self._model.update_payload(row, dict(payload, failed=True))
+                    break
+            self._blocks.append({"kind": "request_error", "text": str(err), "hint": hint,
+                                 "request_id": request_id or ""})
         elif self._plan_revision_mode:
             self._plan_revision_mode = False
             self.toast.emit("未收到修订后的计划，请换一种修改要求再试")
@@ -6256,6 +6395,8 @@ class Controller(QObject):
 
     def _sub_error_hint(self, err):
         """订阅渠道的 CPA 报错翻译成一句人话。"""
+        if "HTTP 429" in str(err) or "too many pending requests" in str(err).lower():
+            return "服务端请求队列已满或触发限流，请稍后重试。可返回输入框恢复原消息。"
         if not self._sub_kind():
             return ""
         e = str(err)
@@ -6428,10 +6569,6 @@ class Controller(QObject):
         """无后端时的兜底回复。正常运行不该走到这里——外部 exe 启动即异步构建聊天后端
         （不依赖 Houdini/Bridge），仅在后端仍在初始化/初始化失败或 UI 预览时出现。"""
         def step_done():
-            self._blocks.append({"kind": "prose",
-                                 "html": "AI 后端尚未就绪，本条消息未处理。请稍等几秒后重试；"
-                                         "若重启应用后仍然如此，请反馈日志文件："
-                                         "%LOCALAPPDATA%\\HoudiniAgent\\launcher.log"})
-            self._do_flush(); self._set_running(False)
+            self._ui_done("AI 后端尚未就绪，本条消息未处理。请稍等几秒后重试。")
 
         QTimer.singleShot(200, step_done)

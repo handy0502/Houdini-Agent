@@ -6,6 +6,7 @@ import HAgent
 // Token analytics (native QML; no billing/cost display).
 Popup {
     id: tp
+    objectName: "tokenPopup"
     property var st: ({})
     function loc(s) { return controller ? (controller.lang, controller.tr(s)) : s }
     function fmt(n) {
@@ -28,10 +29,11 @@ Popup {
     parent: Overlay.overlay
     anchors.centerIn: parent
     width: Math.min(560, parent ? parent.width - 32 : 560)
-    padding: 18
+    padding: Theme.panelPadding
     modal: true
+    focus: true
     closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape
-    background: Rectangle { color: Theme.bg; border.color: Theme.border; border.width: 1; radius: Theme.radSm }
+    background: Rectangle { color: Theme.panel; border.color: Theme.border; border.width: 1; radius: Theme.radMd }
 
     property var summaryRows: [
         { k: loc("总计"), v: raw(st.total), sub: "TOTAL TOKENS", accent: Theme.accent },
@@ -71,7 +73,7 @@ Popup {
                 }
                 Text {
                     anchors.right: parent.right
-                    text: st.model || ""
+                    text: controller ? controller.modelNameLabel(String(st.model || "")) : ""
                     color: Theme.textDim
                     font.family: Theme.fontMono; font.pixelSize: Theme.fMicro
                     elide: Text.ElideLeft

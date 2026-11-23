@@ -51,6 +51,14 @@ Item {
         ruleDirty = false
     }
     function reload() { tab = 0; selected = 0; refresh(); if (mode === "rules") loadRule() }
+    function setEntryEnabled(name, enabled) {
+        if (!controller) return
+        // Saving emits managementChanged, which may replace this list's rows.
+        // Finish the action here, outside the delegate that initiated it.
+        if (tab === 0) controller.setPluginEnabled(name, enabled)
+        else controller.setToolEnabled(name, enabled)
+        refresh()
+    }
 
     onActiveChanged: if (active) reload()
     onModeChanged: if (active) reload()
@@ -104,13 +112,13 @@ Item {
             visible: mc.mode === "rules"
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: 0
+            spacing: Theme.sp(12)
 
             Rectangle {
                 Layout.preferredWidth: Math.min(Math.round(264 * Theme.scale), Math.round(mc.width * 0.44))
                 Layout.fillHeight: true
                 color: Theme.codeBg
-                Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: Theme.border }
+                radius: Theme.radMd
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 14; spacing: 12
                     RowLayout {
@@ -137,11 +145,10 @@ Item {
                         delegate: Rectangle {
                             required property int index
                             required property var modelData
+                            objectName: "ruleRow_" + modelData.id
                             width: ListView.view.width
                             height: Math.round(54 * Theme.scale)
                             color: index === mc.selected ? Theme.accentSoft : Theme.surface
-                            border.color: index === mc.selected ? Theme.accentLine : Theme.borderSoft
-                            border.width: 1
                             radius: Theme.radSm
                             Rectangle {
                                 anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
@@ -241,29 +248,11 @@ Item {
                         ColumnLayout {
                             spacing: 5
                             Text { text: "STATE"; color: Theme.textDim; font.family: Theme.fontMono; font.pixelSize: Theme.fMicro; font.letterSpacing: Theme.trackLabel }
-                            Item {
+                            ToggleSwitch {
                                 id: ruleEnabled
-                                property bool checked: true
-                                implicitWidth: Math.round(76 * Theme.scale)
-                                implicitHeight: Math.round(30 * Theme.scale)
-                                Rectangle {
-                                    anchors.fill: parent; radius: Theme.radSm
-                                    color: ruleEnabled.checked ? Theme.accentSoft : "transparent"
-                                    border.width: 1
-                                    border.color: ruleEnabled.checked ? Theme.accentLine : Theme.border
-                                }
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: ruleEnabled.checked ? mc.loc("启用") : mc.loc("停用")
-                                    color: ruleEnabled.checked ? Theme.accent : Theme.textMute
-                                    font.family: Theme.fontBody; font.pixelSize: Theme.fSm
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    enabled: !mc.selectedRule().readonly
-                                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                    onClicked: { ruleEnabled.checked = !ruleEnabled.checked; mc.ruleDirty = true }
-                                }
+                                Accessible.name: mc.loc("启用")
+                                enabled: !mc.selectedRule().readonly
+                                onToggled: mc.ruleDirty = true
                             }
                         }
                     }
@@ -275,6 +264,7 @@ Item {
                         border.width: 1; radius: Theme.radSm
                         TextArea {
                             id: ruleBody
+                            objectName: "ruleContentEditor"
                             anchors.fill: parent; anchors.margins: 11
                             readOnly: mc.selectedRule().readonly
                             wrapMode: TextArea.Wrap
@@ -288,8 +278,8 @@ Item {
                             onTextChanged: if (!mc.selectedRule().readonly) mc.ruleDirty = true
                         }
                     }
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 10
+                    ColumnLayout {
+                        Layout.fillWidth: true; spacing: Theme.sp(6)
                         Text {
                             Layout.fillWidth: true
                             text: mc.selectedRule().readonly
@@ -299,8 +289,13 @@ Item {
                             elide: Text.ElideMiddle
                             font.family: Theme.fontMono; font.pixelSize: Theme.fMicro
                         }
-                        Pill { label: mc.loc("删除"); dashed: true; visible: !mc.selectedRule().readonly && mc.rules.length > 0; onClicked: { if (controller) controller.deleteRule(mc.selectedRule().id) } }
-                        Pill { label: mc.loc("提交"); accent: true; visible: !mc.selectedRule().readonly && mc.rules.length > 0; onClicked: { if (!controller || controller.saveRule(mc.selectedRule().id, ruleTitle.text, ruleBody.text, ruleEnabled.checked)) { mc.ruleDirty = false; mc.refresh(); mc.loadRule() } } }
+                        Flow {
+                            Layout.fillWidth: true
+                            spacing: Theme.sp(6)
+                            Pill { label: mc.loc("删除"); dashed: true; visible: !mc.selectedRule().readonly && mc.rules.length > 0; onClicked: { if (controller) controller.deleteRule(mc.selectedRule().id) } }
+                            Pill { objectName: "cancelRuleEdit"; label: mc.loc("取消"); visible: !mc.selectedRule().readonly && mc.ruleDirty; onClicked: mc.loadRule() }
+                            Pill { label: mc.loc("提交"); accent: true; visible: !mc.selectedRule().readonly && mc.rules.length > 0; onClicked: { if (!controller || controller.saveRule(mc.selectedRule().id, ruleTitle.text, ruleBody.text, ruleEnabled.checked)) { mc.ruleDirty = false; mc.refresh(); mc.loadRule() } } }
+                        }
                     }
                 }
             }
@@ -334,7 +329,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 6
                     Pill {
-                        visible: mc.tab === 0 && modelData.settings
+                        visible: mc.tab === 0 && !!modelData.settings
                         label: "⚙"
                         onClicked: {
                             if (!controller) return
@@ -344,16 +339,12 @@ Item {
                         }
                     }
                     Pill { visible: mc.tab === 0; label: "↻"; onClicked: { if (controller) controller.reloadPlugin(modelData.name); mc.refresh() } }
-                    Pill {
+                    ToggleSwitch {
+                        objectName: "entryToggle_" + modelData.name
                         visible: mc.tab !== 2
-                        label: modelData.enabled === false ? "OFF" : "ON"
-                        active: modelData.enabled !== false
-                        onClicked: {
-                            if (!controller) return
-                            if (mc.tab === 0) controller.setPluginEnabled(modelData.name, !(modelData.enabled !== false))
-                            else controller.setToolEnabled(modelData.name, !(modelData.enabled !== false))
-                            mc.refresh()
-                        }
+                        Accessible.name: modelData.name || ""
+                        checked: modelData.enabled !== false
+                        onToggled: mc.setEntryEnabled(modelData.name, checked)
                     }
                 }
             }
@@ -396,11 +387,12 @@ Item {
         id: settingsPopup
         parent: Overlay.overlay
         anchors.centerIn: parent
-        width: Math.min(460, parent ? parent.width - 48 : 460)
-        padding: 18
+        width: Math.min(Theme.fs(460), parent ? parent.width - Theme.sp(32) : Theme.fs(460))
+        padding: Theme.panelPadding
         modal: true
+        focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        background: Rectangle { color: Theme.bg; border.color: Theme.border; border.width: 1; radius: Theme.radSm }
+        background: Rectangle { color: Theme.panel; border.color: Theme.border; border.width: 1; radius: Theme.radMd }
         contentItem: ColumnLayout {
             spacing: 12
             Text {
@@ -418,26 +410,27 @@ Item {
                     required property var modelData
                     Layout.fillWidth: true
                     Text {
-                        Layout.preferredWidth: 130
+                        Layout.preferredWidth: Math.min(Theme.fs(130), settingsPopup.availableWidth * 0.45)
                         text: modelData.label || modelData.key
                         color: Theme.textDim
                         elide: Text.ElideRight
                         font.family: Theme.fontBody; font.pixelSize: Theme.fSm
                     }
-                    CheckBox {
+                    ToggleSwitch {
+                        Accessible.name: modelData.label || modelData.key
                         visible: modelData.type === "bool"
                         checked: !!modelData.value
                         onToggled: mc.settingsRows[index].value = checked
-                        palette.windowText: Theme.text
                     }
                     TextField {
                         visible: modelData.type !== "bool"
+                        Layout.preferredHeight: Theme.fieldHeight
                         Layout.fillWidth: true
                         text: modelData.value === undefined ? "" : "" + modelData.value
                         color: Theme.textBright
                         font.family: Theme.fontMono; font.pixelSize: Theme.fSm
                         onTextEdited: mc.settingsRows[index].value = text
-                        background: Rectangle { color: Theme.surface; border.color: parent.activeFocus ? Theme.accentLine : Theme.border; radius: Theme.radSm }
+                        background: Rectangle { color: Theme.fieldBg; border.color: parent.activeFocus ? Theme.accentLine : Theme.border; radius: Theme.radSm }
                     }
                 }
             }

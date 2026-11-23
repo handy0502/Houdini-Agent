@@ -9,6 +9,7 @@ import HAgent
 Rectangle {
     id: lib
     color: Theme.bg
+    radius: Theme.radMd
 
     property var items: []
     property bool loading: controller ? controller.libraryLoading : false
@@ -84,8 +85,6 @@ Rectangle {
             Rectangle {
                 width: 26; height: 26; radius: Theme.radSm
                 color: closeMa.containsMouse ? Theme.surface : "transparent"
-                border.width: 1
-                border.color: closeMa.containsMouse ? Theme.border : "transparent"
                 Text { anchors.centerIn: parent; text: "✕"; color: Theme.textDim; font.pixelSize: Theme.fMd }
                 MouseArea {
                     id: closeMa; anchors.fill: parent; hoverEnabled: true

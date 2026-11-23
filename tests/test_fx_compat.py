@@ -263,6 +263,38 @@ class FXCompatTests(unittest.TestCase):
 
 @unittest.skipUnless(os.name == "nt", "PowerShell launcher is Windows-only")
 class LauncherPythonSelectionTests(unittest.TestCase):
+    def test_launcher_starts_only_agent_before_version_confirmation(self):
+        script = Path(__file__).resolve().parents[1] / "start_houdini_agent.ps1"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime = root / "Side Effects Software" / "Houdini 22.0.429" / "python313"
+            runtime.mkdir(parents=True)
+            (runtime / "python.exe").touch()
+            (runtime / "pythonw.exe").touch()
+            ps = """
+                $ErrorActionPreference = 'Stop'
+                $env:ProgramFiles = '%s'
+                $global:agentLauncherCalls = @()
+                function Start-Process {
+                    param($FilePath, $ArgumentList, $WorkingDirectory, $WindowStyle)
+                    $global:agentLauncherCalls += [pscustomobject]@{
+                        path = $FilePath; args = @($ArgumentList); style = $WindowStyle
+                    }
+                }
+                & '%s'
+                ConvertTo-Json -Compress -InputObject @($global:agentLauncherCalls)
+            """ % (str(root).replace("'", "''"), str(script).replace("'", "''"))
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
+                capture_output=True, text=True, timeout=15,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            launched = json.loads(result.stdout.strip().splitlines()[-1])
+            self.assertEqual(len(launched), 1)
+            self.assertEqual(Path(launched[0]["path"]), runtime / "pythonw.exe")
+            self.assertEqual(launched[0]["args"], [str(script.parent / "launcher.py")])
+            self.assertNotEqual(launched[0]["style"], "Hidden")
+
     def test_launcher_selects_newest_complete_interpreter(self):
         script = Path(__file__).resolve().parents[1] / "start_houdini_agent.ps1"
         with tempfile.TemporaryDirectory() as directory:
