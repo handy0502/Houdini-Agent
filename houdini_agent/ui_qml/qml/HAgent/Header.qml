@@ -21,15 +21,14 @@ Rectangle {
         anchors.fill: parent; anchors.leftMargin: Theme.sp(16); anchors.rightMargin: Theme.sp(16)
         spacing: Theme.sp(8)
         Text {
-            Layout.fillWidth: true; Layout.minimumWidth: 40
+            Layout.fillWidth: true; Layout.minimumWidth: 0
             text: header.title(); elide: Text.ElideRight
             color: Theme.textBright; font.family: Theme.fontBody; font.pixelSize: Theme.fBody; font.weight: Font.Medium
         }
-        IconButton {
-            objectName: "settingsButton"
-            icon: "more"; circular: true
-            tooltip: header.loc("设置", "Settings")
-            onClicked: if (controller) controller.menuAction("settings")
+        HoudiniConnection {
+            Layout.preferredWidth: implicitWidth
+            Layout.minimumWidth: implicitWidth
+            Layout.maximumWidth: implicitWidth
         }
     }
 }

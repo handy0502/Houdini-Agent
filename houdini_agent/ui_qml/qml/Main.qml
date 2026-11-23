@@ -32,6 +32,7 @@ Rectangle {
     }
     Shortcut { sequence: "Ctrl+N"; onActivated: if (controller) controller.newSession() }
     Shortcut { sequence: "Ctrl+B"; onActivated: root.toggleNavigation() }
+    Shortcut { sequence: "Ctrl+,"; onActivated: if (controller) controller.menuAction("settings") }
 
     // 外观状态（字号 / 主题 / 强调色 / 字体方案 / 密度）驱动 Theme 单例换肤
     function applyAppearance() {
@@ -67,7 +68,7 @@ Rectangle {
             objectName: "sidebarResizeHandle"
             Layout.preferredWidth: Theme.fs(6)
             Layout.fillHeight: true
-            color: dragArea.containsMouse || dragArea.pressed ? Theme.surface2 : "transparent"
+            color: "transparent"
             activeFocusOnTab: true
             Accessible.role: Accessible.Slider
             Accessible.name: controller && controller.lang === "en" ? "Sidebar width" : "侧栏宽度"
@@ -75,7 +76,8 @@ Rectangle {
             Keys.onRightPressed: root.resizeNavigation((root.sidebarExpanded ? root.navigationWidth : 0) + Theme.fs(80))
             Rectangle {
                 anchors.centerIn: parent; width: 1; height: parent.height
-                color: dragArea.containsMouse || dragArea.pressed ? Theme.border : Theme.borderSoft
+                visible: dragArea.pressed
+                color: Theme.border
             }
             MouseArea {
                 id: dragArea
@@ -108,6 +110,7 @@ Rectangle {
             }
 
             ChatView {
+                id: conversationView
                 objectName: "chatViewport"
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -157,13 +160,15 @@ Rectangle {
             ContextBar {
                 id: sceneContextBar
                 Layout.fillWidth: true
-                Layout.maximumWidth: Theme.contentMaxWidth + Theme.sp(32)
+                Layout.maximumWidth: Theme.contentMaxWidth + Theme.sp(16) * 2
+                Layout.rightMargin: conversationView.navigationGutter
                 Layout.alignment: Qt.AlignHCenter
             }
             Composer {
                 objectName: "composer"
                 Layout.fillWidth: true
-                Layout.maximumWidth: Theme.contentMaxWidth + Theme.sp(32)
+                Layout.maximumWidth: Theme.contentMaxWidth + Theme.sp(16) * 2
+                Layout.rightMargin: conversationView.navigationGutter
                 Layout.alignment: Qt.AlignHCenter
                 availableHeightBudget: Math.max(0, conversationPane.height - conversationHeader.implicitHeight
                     - sceneContextBar.implicitHeight - (updateNotice.visible ? updateNotice.implicitHeight : 0))

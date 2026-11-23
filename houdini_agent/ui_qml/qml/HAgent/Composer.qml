@@ -44,6 +44,13 @@ Rectangle {
         target: controller
         ignoreUnknownSignals: true
         function onImagesChanged() { composer.imgUris = controller.pendingImageUris() }
+        function onRestoreFailedDraft(t) {
+            var current = inputArea.text
+            if (current !== t && current.indexOf(t + "\n\n") !== 0)
+                inputArea.text = current.trim().length > 0 ? t + "\n\n" + current : t
+            inputArea.cursorPosition = inputArea.text.length
+            inputArea.forceActiveFocus()
+        }
         function onPrefillComposer(t) {
             if (controller && controller.setMode("Agent")) composer.modeIndex = 0
             inputArea.text = t
@@ -95,8 +102,8 @@ Rectangle {
                         objectName: "attachmentThumbnail_" + index
                         width: Theme.fs(58); height: Theme.fs(58)
                         color: Theme.codeBg; radius: Theme.radSm
-                        border.color: Theme.border; border.width: 1; clip: true
-                        Image { anchors.fill: parent; anchors.margins: 2; source: modelData; fillMode: Image.PreserveAspectCrop }
+                        clip: true
+                        ThumbnailImage { anchors.fill: parent; source: modelData }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { fullImg.src = modelData; fullImg.open() } }
                         IconButton {
                             objectName: "removeAttachment_" + index
@@ -197,7 +204,8 @@ Rectangle {
                             objectName: "modeSelector"
                             label: composer.modes[composer.modeIndex]
                             Layout.fillWidth: true
-                            Layout.minimumWidth: Theme.fs(48)
+                            Layout.minimumWidth: Math.min(Theme.fs(48), Math.max(0,
+                                inputLayout.width - Theme.controlHeight - Theme.sp(3)))
                             Layout.maximumWidth: implicitWidth
                             caret: true; elideLabel: true
                             Layout.alignment: Qt.AlignVCenter
@@ -207,13 +215,19 @@ Rectangle {
                             }
                         }
                     }
-                    RowLayout {
+                    GridLayout {
+                        id: trailingControls
                         Layout.fillWidth: true
-                        spacing: Theme.sp(3)
-                        Item { Layout.fillWidth: true }
+                        readonly property bool stacked: inputLayout.width < Theme.controlHeight * 2 + 40 + 5 + Theme.sp(3) * 3
+                        columns: stacked ? 2 : 4
+                        columnSpacing: Theme.sp(3); rowSpacing: Theme.sp(6)
+                        Item { visible: !trailingControls.stacked; Layout.row: 0; Layout.column: 0; Layout.fillWidth: true }
                         ContextUsage {
                             objectName: "contextUsage"
-                            Layout.alignment: Qt.AlignVCenter
+                            Layout.row: 0
+                            Layout.column: trailingControls.stacked ? 0 : 1
+                            Layout.columnSpan: trailingControls.stacked ? 2 : 1
+                            Layout.alignment: trailingControls.stacked ? Qt.AlignRight | Qt.AlignVCenter : Qt.AlignVCenter
                         }
                         Pill {
                             id: modelButton
@@ -223,6 +237,8 @@ Rectangle {
                                 ? controller.reasoningEffortLabel.split(" · ").pop() : ""
                             caret: true; elideLabel: true
                             Layout.alignment: Qt.AlignVCenter
+                            Layout.row: trailingControls.stacked ? 1 : 0
+                            Layout.column: trailingControls.stacked ? 0 : 2
                             Layout.fillWidth: true
                             Layout.minimumWidth: 40
                             Layout.maximumWidth: Math.min(modelButton.implicitWidth, Theme.fs(180),
@@ -238,6 +254,8 @@ Rectangle {
                             property bool ready: inputArea.text.trim().length > 0
                             Layout.preferredWidth: Theme.controlHeight; Layout.preferredHeight: Theme.controlHeight
                             Layout.alignment: Qt.AlignVCenter
+                            Layout.row: trailingControls.stacked ? 1 : 0
+                            Layout.column: trailingControls.stacked ? 1 : 3
                             Layout.leftMargin: 5
                             radius: width / 2
                             color: Theme.textBright

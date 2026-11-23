@@ -16,6 +16,7 @@ import json
 import os
 import socket
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from .client import BridgeClient, DEFAULT_HOST, _FALLBACK_PORT, port_file, resolve_port
@@ -137,6 +138,20 @@ def scan_for_bridge(heartbeat=None):
         if isinstance(info, dict) and info.get("status") == "ok":
             return p, info
     return None, None
+
+
+def discover_sessions():
+    """List responsive local Bridge sessions without changing the active port."""
+    ports = _candidate_ports()
+
+    def probe(port):
+        info = _ping(port)
+        if isinstance(info, dict) and info.get("status") == "ok":
+            return {"port": port, "version": str(info.get("houdini") or "")}
+        return None
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        return [session for session in pool.map(probe, ports) if session]
 
 
 def adopt_port(port):

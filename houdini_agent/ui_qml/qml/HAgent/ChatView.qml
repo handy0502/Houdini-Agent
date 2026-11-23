@@ -82,7 +82,7 @@ Flickable {
         id: rows
         x: (view.width - view.navigationGutter - width) / 2
         y: rep.count === 0 ? Math.max(Theme.sp(36), (view.height - implicitHeight) * 0.40) : Theme.sp(28)
-        width: Math.max(0, Math.min(Theme.contentMaxWidth, view.width - view.navigationGutter - Theme.sp(40)))
+        width: Math.max(0, Math.min(Theme.contentMaxWidth, view.width - view.navigationGutter - Theme.sp(16) * 2))
         spacing: Theme.sp(28)
 
         // 空会话起手式（仅在没有任何消息时显示）
@@ -118,7 +118,7 @@ Flickable {
                 sourceComponent: rtype === "user" ? cUser
                                : rtype === "plan" ? cPlan
                                : cAi
-                Component { id: cUser; MessageUser { msg: ld.payload; width: ld.width } }
+                Component { id: cUser; MessageUser { msg: ld.payload; messageRow: ld.index; width: ld.width } }
                 Component { id: cAi;   MessageAI  { msg: ld.payload; width: ld.width } }
                 Component { id: cPlan; PlanCard   { plan: ld.payload; width: ld.width } }
             }

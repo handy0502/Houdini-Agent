@@ -11,6 +11,36 @@ Item {
     property var customs: []
     property var builtins: []
     property string editingId: ""      // "" 列表态；"new" 新增；其余为编辑某 id
+    readonly property real selectColumnWidth: Math.ceil(Math.max(useMetrics.width, currentMetrics.width)) + 22
+    readonly property real configColumnWidth: Math.ceil(Math.max(apiMetrics.width, loginMetrics.width, editMetrics.width)) + 22
+
+    TextMetrics { id: useMetrics; text: pm.loc("使用"); font.family: Theme.fontBody; font.pixelSize: Theme.fSm }
+    TextMetrics { id: currentMetrics; text: pm.loc("当前"); font.family: Theme.fontBody; font.pixelSize: Theme.fSm }
+    TextMetrics { id: apiMetrics; text: "API Key"; font.family: Theme.fontBody; font.pixelSize: Theme.fSm }
+    TextMetrics { id: loginMetrics; text: pm.loc("订阅登录"); font.family: Theme.fontBody; font.pixelSize: Theme.fSm }
+    TextMetrics { id: editMetrics; text: pm.loc("编辑"); font.family: Theme.fontBody; font.pixelSize: Theme.fSm }
+
+    component ActionColumn: Item {
+        id: actionColumn
+        property string label: ""
+        property bool readOnly: false
+        signal clicked()
+        implicitHeight: Theme.controlHeight
+        Layout.minimumWidth: implicitWidth
+        Layout.maximumWidth: implicitWidth
+        Pill {
+            anchors.centerIn: parent
+            visible: !actionColumn.readOnly
+            label: actionColumn.label
+            onClicked: actionColumn.clicked()
+        }
+        Text {
+            anchors.centerIn: parent
+            visible: actionColumn.readOnly
+            text: actionColumn.label; color: Theme.accent
+            font.family: Theme.fontBody; font.pixelSize: Theme.fSm
+        }
+    }
 
     // 编辑态字段
     property string fName: ""
@@ -143,16 +173,23 @@ Item {
                     radius: Theme.radSm
                     color: bma.containsMouse ? Theme.surface : "transparent"
                     RowLayout {
-                        anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 9
+                        anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 8; spacing: 9
                         DotChip { on: true }
-                        Text { Layout.fillWidth: true; text: modelData.name; color: Theme.text
+                        Text { Layout.fillWidth: true; Layout.minimumWidth: 0; text: modelData.name; color: Theme.text
                                font.family: Theme.fontBody; font.pixelSize: Theme.fSm; elide: Text.ElideRight }
-                        Text { visible: modelData.active; text: pm.loc("当前"); color: Theme.accent
-                               font.family: Theme.fontMono; font.pixelSize: Theme.fMicro; font.letterSpacing: Theme.trackLabel }
-                        Pill { visible: !modelData.active; label: pm.loc("使用")
-                               onClicked: if (controller) controller.selectProviderModel(modelData.key, "") }
-                        Pill { label: (modelData.key === "codex" || modelData.key === "claude_sub") ? pm.loc("订阅登录") : "API Key"
-                               onClicked: if (controller) controller.openProviderApiKey(modelData.key) }
+                        ActionColumn {
+                            objectName: "providerSelect_" + modelData.key
+                            implicitWidth: pm.selectColumnWidth
+                            label: modelData.active ? pm.loc("当前") : pm.loc("使用")
+                            readOnly: modelData.active
+                            onClicked: if (controller) controller.selectProviderModel(modelData.key, "")
+                        }
+                        ActionColumn {
+                            objectName: "providerConfig_" + modelData.key
+                            implicitWidth: pm.configColumnWidth
+                            label: (modelData.key === "codex" || modelData.key === "claude_sub") ? pm.loc("订阅登录") : "API Key"
+                            onClicked: if (controller) controller.openProviderApiKey(modelData.key)
+                        }
                     }
                     MouseArea { id: bma; anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton }
                 }
@@ -180,18 +217,26 @@ Item {
                         anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 8; spacing: 9
                         DotChip { on: modelData.configured }
                         ColumnLayout {
-                            Layout.fillWidth: true; spacing: 1
+                            Layout.fillWidth: true; Layout.minimumWidth: 0; spacing: 1
                             Text { text: modelData.name; color: Theme.text; font.family: Theme.fontBody
                                    font.pixelSize: Theme.fSm; elide: Text.ElideRight; Layout.fillWidth: true }
                             Text { text: modelData.models.length + " " + pm.loc("模型列表") + (modelData.anthropic ? " · Anthropic" : " · OpenAI")
                                    color: Theme.textMute; font.family: Theme.fontMono; font.pixelSize: Theme.fMicro
                                    elide: Text.ElideRight; Layout.fillWidth: true }
                         }
-                        Text { visible: modelData.active; text: pm.loc("当前"); color: Theme.accent
-                               font.family: Theme.fontMono; font.pixelSize: Theme.fMicro; font.letterSpacing: Theme.trackLabel }
-                        Pill { visible: !modelData.active; label: pm.loc("使用")
-                               onClicked: if (controller) controller.selectProviderModel("custom:" + modelData.id, "") }
-                        Pill { label: pm.loc("编辑"); onClicked: pm.startEdit(modelData) }
+                        ActionColumn {
+                            objectName: "providerSelect_custom:" + modelData.id
+                            implicitWidth: pm.selectColumnWidth
+                            label: modelData.active ? pm.loc("当前") : pm.loc("使用")
+                            readOnly: modelData.active
+                            onClicked: if (controller) controller.selectProviderModel("custom:" + modelData.id, "")
+                        }
+                        ActionColumn {
+                            objectName: "providerConfig_custom:" + modelData.id
+                            implicitWidth: pm.configColumnWidth
+                            label: pm.loc("编辑")
+                            onClicked: pm.startEdit(modelData)
+                        }
                     }
                 }
             }

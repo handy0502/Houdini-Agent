@@ -70,18 +70,14 @@ Popup {
             background: Rectangle { color: Theme.surface; border.color: Theme.borderSoft; radius: Theme.radSm }
         }
 
-        TextArea {
+        Text {
             visible: dlg.mode === "confirm"
             Layout.fillWidth: true
-            Layout.preferredHeight: Math.min(160, Math.max(70, contentHeight + 18))
             text: dlg.body
-            readOnly: true
-            wrapMode: TextArea.Wrap
-            color: Theme.text
-            selectedTextColor: Theme.bg
-            selectionColor: Theme.accent
+            textFormat: Text.PlainText
+            wrapMode: Text.Wrap
+            color: Theme.err
             font.family: Theme.fontBody; font.pixelSize: Theme.fSm
-            background: Rectangle { color: Theme.surface; border.color: Theme.warn; radius: Theme.radSm }
         }
 
         ColumnLayout {

@@ -52,12 +52,19 @@ class BridgeClient:
         self._fixed_port = int(port) if port is not None else None
         self.connect_timeout = float(connect_timeout)
         self.request_timeout = float(request_timeout)
+        self._enabled = True
+
+    def set_enabled(self, enabled):
+        """Pause this app's requests without closing the Houdini process."""
+        self._enabled = bool(enabled)
 
     @property
     def port(self):
         return self._fixed_port if self._fixed_port is not None else resolve_port()
 
     def request(self, action, payload=None, timeout=None):
+        if not self._enabled:
+            raise RuntimeError("Houdini 已手动断开，请从连接菜单选择会话后再连接。")
         msg = {
             "id": uuid.uuid4().hex,
             "action": action,

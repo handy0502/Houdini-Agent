@@ -1,4 +1,6 @@
 import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls.Basic
 import HAgent
 
 // User message — a right-aligned bubble on a soft neutral surface.
@@ -6,6 +8,7 @@ import HAgent
 Item {
     id: root
     property var msg: ({})
+    property int messageRow: -1
     property var images: (msg && msg.images) ? msg.images : []
     implicitHeight: col.height
 
@@ -28,13 +31,11 @@ Item {
                     required property var modelData
                     width: 76; height: 76
                     color: Theme.codeBg
-                    border.color: Theme.userBorder; border.width: 1
                     radius: Theme.radSm
                     clip: true
-                    Image {
-                        anchors.fill: parent; anchors.margins: 1
+                    ThumbnailImage {
+                        anchors.fill: parent
                         source: "" + modelData
-                        fillMode: Image.PreserveAspectCrop
                         asynchronous: true
                         sourceSize: Qt.size(160, 160)
                     }
@@ -67,6 +68,28 @@ Item {
                 selectedTextColor: Theme.textBright
                 font.family: Theme.fontBody
                 font.pixelSize: Theme.fBody
+            }
+        }
+        RowLayout {
+            anchors.right: parent.right
+            spacing: Theme.sp(6)
+            Text {
+                objectName: "sentTime_" + root.messageRow
+                visible: !!root.msg.sent_at
+                text: visible ? Qt.formatDateTime(new Date(root.msg.sent_at * 1000), "HH:mm") : ""
+                color: Theme.textMute
+                font.family: Theme.fontBody
+                font.pixelSize: Theme.fSm
+                ToolTip.visible: timeHover.containsMouse
+                ToolTip.text: root.msg.sent_at ? Qt.formatDateTime(new Date(root.msg.sent_at * 1000), "yyyy-MM-dd HH:mm:ss") : ""
+                MouseArea { id: timeHover; anchors.fill: parent; hoverEnabled: true }
+            }
+            IconButton {
+                objectName: "copyUserMessage_" + root.messageRow
+                icon: "copy"
+                tooltip: controller && controller.lang === "en" ? "Copy message" : "复制消息"
+                visible: txt.text.length > 0
+                onClicked: if (controller) controller.copyToClipboard(txt.text)
             }
         }
     }

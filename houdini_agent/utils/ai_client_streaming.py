@@ -4,6 +4,8 @@ import sys
 import json
 import time
 import re
+import math
+from email.utils import parsedate_to_datetime
 from typing import List, Dict, Optional, Any, Generator
 
 # 强制使用本地 lib 目录中的依赖库（与 ai_client.py 一致，保证 mixin 模块自洽）
@@ -24,6 +26,26 @@ except ImportError:
 
 class AIClientStreamingMixin:
     """Streaming chat: Anthropic and OpenAI-compatible streaming."""
+
+    def _rate_limit_delay(self, response, attempt):
+        value = response.headers.get('Retry-After', '')
+        try:
+            delay = float(value)
+        except (TypeError, ValueError):
+            try:
+                delay = parsedate_to_datetime(value).timestamp() - time.time()
+            except (TypeError, ValueError, OverflowError):
+                delay = 5 * (2 ** attempt)
+        if not math.isfinite(delay) or delay > 60:
+            return None  # do not retry sooner than a long server cooldown
+        return max(1.0, delay)
+
+    def _wait_for_retry(self, seconds):
+        event = getattr(self, '_stop_event', None)
+        if event is not None:
+            return not event.wait(seconds)
+        time.sleep(seconds)
+        return True
 
     # ★ 预编译流式内容清洗正则（避免每个 SSE chunk 都重新编译）
     _RE_CLEAN_PATTERNS = [
@@ -259,6 +281,14 @@ class AIClientStreamingMixin:
                             err_msg = response.text
                         print(f"[AI Client] Anthropic error: {err_msg}")
 
+                        if response.status_code == 429 and attempt < self._max_retries - 1:
+                            delay = self._rate_limit_delay(response, attempt)
+                            response.close()
+                            if delay is not None:
+                                if not self._wait_for_retry(delay):
+                                    yield {"type": "stopped", "message": "用户停止了请求"}
+                                    return
+                                continue
                         if response.status_code >= 500 and attempt < self._max_retries - 1:
                             wait = self._retry_delay * (attempt + 1)
                             print(f"[AI Client] Anthropic server error {response.status_code}, retrying in {wait}s...")
@@ -516,6 +546,15 @@ class AIClientStreamingMixin:
                     api_url, json=payload, headers=headers,
                     timeout=timeout, proxies={'http': None, 'https': None}
                 )
+                if response.status_code == 429:
+                    error = 'HTTP 429: ' + response.text
+                    delay = self._rate_limit_delay(response, attempt)
+                    response.close()
+                    if attempt < self._max_retries - 1 and delay is not None:
+                        if not self._wait_for_retry(delay):
+                            return {'ok': False, 'error': '用户停止了请求'}
+                        continue
+                    return {'ok': False, 'error': error}
                 response.raise_for_status()
                 obj = response.json()
 
@@ -687,6 +726,15 @@ class AIClientStreamingMixin:
                             err_msg = response.text
                         print(f"[AI Client] Error: {err_msg}")
 
+                        # Rate limits wait without trimming or replaying tool work.
+                        if response.status_code == 429 and attempt < self._max_retries - 1:
+                            delay = self._rate_limit_delay(response, attempt)
+                            response.close()
+                            if delay is not None:
+                                if not self._wait_for_retry(delay):
+                                    yield {"type": "stopped", "message": "用户停止了请求"}
+                                    return
+                                continue
                         # 5xx 服务端错误（502/503/529 等）可重试
                         if response.status_code >= 500 and attempt < self._max_retries - 1:
                             wait = self._retry_delay * (attempt + 1)
@@ -1066,6 +1114,15 @@ class AIClientStreamingMixin:
                     timeout=timeout,
                     proxies={'http': None, 'https': None}
                 )
+                if response.status_code == 429:
+                    error = 'HTTP 429: ' + response.text
+                    delay = self._rate_limit_delay(response, attempt)
+                    response.close()
+                    if attempt < self._max_retries - 1 and delay is not None:
+                        if not self._wait_for_retry(delay):
+                            return {'ok': False, 'error': '用户停止了请求'}
+                        continue
+                    return {'ok': False, 'error': error}
                 response.raise_for_status()
                 obj = response.json()
 

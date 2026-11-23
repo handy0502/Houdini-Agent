@@ -57,6 +57,7 @@ Item {
                                    : block.kind === "planstream" ? cPlanS
                                    : block.kind === "meshy"    ? cMeshy
                                    : block.kind === "concept"  ? cConcept
+                                   : block.kind === "request_error" ? cRequestError
                                    : cProse
                     Component { id: cThink; ThinkingBlock { block: bl.block; width: bl.width } }
                     Component { id: cExec;  ExecBlock     { block: bl.block; width: bl.width } }
@@ -72,6 +73,7 @@ Item {
                     Component { id: cPlanS; PlanStreamBlock { block: bl.block; width: bl.width } }
                     Component { id: cMeshy; MeshyCard { block: bl.block; width: bl.width } }
                     Component { id: cConcept; ConceptGalleryCard { block: bl.block; width: bl.width } }
+                    Component { id: cRequestError; RequestError { block: bl.block; width: bl.width } }
                 }
             }
         }

@@ -54,6 +54,7 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
             controller.setFontFamilyKey('modern')
             view = create_view(controller=controller, model=model)
             view.resize(1180, 820)
+            assert view.quickWindow().color() == view.rootObject().property('color')
             view.show()
             QTest.qWait(100)
             assert view.status() != QQuickWidget.Error, [e.toString() for e in view.errors()]
@@ -76,6 +77,13 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
                 pos = item.mapToScene(QPointF(item.width()/2, item.height()/2)).toPoint()
                 QTest.mouseClick(view, Qt.LeftButton, Qt.NoModifier, pos)
                 QTest.qWait(60)
+            def open_settings():
+                settings_button = find('settingsButton')
+                if settings_button.isVisible():
+                    click(settings_button)
+                else:
+                    QTest.keyClick(view, Qt.Key_Comma, Qt.ControlModifier)
+                    QTest.qWait(60)
             def drag_sidebar(delta):
                 handle = find('sidebarResizeHandle')
                 start = handle.mapToScene(QPointF(handle.width()/2, handle.height()/2))
@@ -86,9 +94,205 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
                 QTest.mouseRelease(view, Qt.LeftButton, Qt.NoModifier, (start + QPointF(delta, 0)).toPoint())
                 QTest.qWait(60)
             assert root.property('wide')
+            settings_gear = find('settingsButton')
+            assert settings_gear.property('icon') == 'gear'
+            gear_point = settings_gear.mapToScene(QPointF(0, 0))
+            assert gear_point.x() < find('dockedSidebar').width()
+            assert gear_point.y() > view.height() - settings_gear.height() * 2
+            # Startup stays in chat. One compact header menu owns discovering,
+            # connecting to, switching, and launching Houdini sessions.
+            from houdini_agent.ui_qml import external_app as external
+            from houdini_agent.bridge import doctor
+            installs = [dict(version='22.0.429', path='C:/fake/22', exe='fake22'),
+                        dict(version='21.0.631', path='C:/fake/21', exe='fake21')]
+            discovered = [dict(port=45173, version='22.0.429'), dict(port=45174, version='21.0.631')]
+            coordinator = external.ExternalCoordinator(view, controller, str(state))
+            coordinator.poll = MagicMock()
+            with patch.object(external, 'find_houdini_installs', return_value=installs), \
+                 patch.object(coordinator, '_ensure_packages'), \
+                 patch.object(coordinator, '_start_session_build'), \
+                 patch.object(coordinator, '_poll_tick') as probe, \
+                 patch.object(controller, 'refreshContext'), \
+                 patch.object(external, 'launch_houdini') as launch, \
+                 patch.object(doctor, 'discover_sessions', return_value=discovered), \
+                 patch.dict(os.environ, {'HAGENT_BRIDGE_PORT': '45172'}):
+                controller.requestHoudiniAction.connect(coordinator.connection_action)
+                coordinator.start()
+                connection = find('houdiniConnectionButton')
+                menu = find('houdiniConnectionMenu')
+                assert not menu.property('visible')
+                launch.assert_not_called()
+                coordinator._on_poll_result(None)
+                assert controller.houdiniConnection['state'] == 'disconnected'
+                assert find('houdiniStatusDot').property('color') == find('houdiniStatusLabel').property('color')
+                assert find('houdiniStatusDot').property('color').name() == '#ff4d4f'
+                click(connection)
+                import time
+                deadline = time.monotonic() + 3
+                while controller.houdiniConnection['busy'] and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                    QTest.qWait(20)
+                assert menu.property('visible') and not controller.houdiniConnection['busy']
+                assert controller.houdiniConnection['sessions'] == discovered
+                def assert_menu_anchor():
+                    anchor = connection.mapToScene(QPointF(connection.width(), connection.height()))
+                    assert abs(menu.property('x') + menu.property('width') - anchor.x()) < 1.1
+                    assert anchor.y() <= menu.property('y') <= anchor.y() + 12
+                    assert menu.property('height') <= view.height() / 3 + 1
+                assert_menu_anchor()
+                scrollbar = find('houdiniMenuScrollBar')
+                assert not scrollbar.property('visible')
+                view.resize(960, 820)
+                QTest.qWait(80)
+                assert_menu_anchor()
+                controller.update_houdini_connection(sessions=[dict(port=46000 + i, version='22.0.test') for i in range(18)])
+                QTest.qWait(80)
+                assert scrollbar.property('visible')
+                assert_menu_anchor()
+                scroll_view = find('houdiniMenuScrollView')
+                flickable = scroll_view.property('contentItem')
+                flickable.setProperty('contentY', flickable.property('contentHeight') - flickable.property('height'))
+                QTest.qWait(60)
+                assert flickable.property('contentY') > 0
+                last_launch = find('launchHoudini_1')
+                last_point = last_launch.mapToScene(QPointF(0, 0))
+                scroll_point = scroll_view.mapToScene(QPointF(0, 0))
+                assert scroll_point.y() <= last_point.y()
+                assert last_point.y() + last_launch.height() <= scroll_point.y() + scroll_view.height() + 1
+                view.grab().save(str(state / 'houdini-menu-height-limit.png'))
+                QTest.keyClick(view, Qt.Key_Escape)
+                controller.update_houdini_connection(sessions=discovered)
+                view.resize(1180, 820)
+                QTest.qWait(80)
+                click(connection)
+                QTest.qWait(80)
+                assert_menu_anchor()
+                assert not scrollbar.property('visible')
+                assert flickable.property('contentY') == 0
+                controller.houdiniAction('connect')
+                coordinator._on_poll_result({'status': 'ok', 'houdini': '22.0.429'})
+                assert controller.houdiniConnection['port'] == 45172
+                QTest.keyClick(view, Qt.Key_Escape)
+                click(connection)
+                click(find('houdiniSession_45173'))
+                assert not menu.property('visible')
+                assert controller.houdiniConnection['state'] == 'connecting'
+                # A stale automatic probe must not override the user's choice.
+                coordinator._probe_port = None
+                coordinator._on_poll_result({'status': 'ok', 'houdini': 'old'})
+                assert controller.houdiniConnection['state'] == 'connecting'
+                coordinator._probe_port = 45173
+                coordinator._on_poll_result({'status': 'ok', 'houdini': '22.0.429'})
+                assert controller.houdiniConnection['state'] == 'connected'
+                assert controller.houdiniConnection['port'] == 45173
+                assert find('houdiniStatusDot').property('color') == find('houdiniStatusLabel').property('color')
+                assert find('houdiniStatusDot').property('color').name() == '#27d769'
+                assert '22.0.429' in connection.property('description')
+                click(connection)
+                click(find('houdiniSession_45174'))
+                coordinator._probe_port = 45174
+                coordinator._on_poll_result({'status': 'ok', 'houdini': '21.0.631'})
+                assert controller.houdiniConnection['port'] == 45174
+                assert os.environ['HAGENT_BRIDGE_PORT'] == '45174'
+                click(connection)
+                click(find('disconnectHoudini'))
+                assert controller.houdiniConnection['state'] == 'disconnected'
+                assert controller.houdiniConnection['paused']
+                coordinator._on_poll_result({'status': 'ok', 'houdini': 'stale'})
+                assert controller.houdiniConnection['state'] == 'disconnected'
+                with patch.object(doctor, 'ensure_connected') as heal:
+                    assert not controller._heal_bridge()
+                    assert not controller._run_connection_tool('repair_houdini_connection', {'action': 'reconnect'})['success']
+                    heal.assert_not_called()
+                click(connection)
+                click(find('houdiniSession_45174'))
+                coordinator._probe_port = 45174
+                coordinator._on_poll_result({'status': 'ok', 'houdini': '21.0.631'})
+                assert not controller.houdiniConnection['paused']
+                assert controller.houdiniConnection['port'] == 45174
+                # Failure to switch preserves the current working session.
+                coordinator.connection_action('connect:45173')
+                coordinator._probe_port = 45173
+                coordinator._on_poll_result(None)
+                assert controller.houdiniConnection['state'] == 'connected'
+                assert controller.houdiniConnection['port'] == 45174
+                coordinator.connection_action('connect:45173')
+                coordinator._probe_port = 45173
+                controller._running = True
+                coordinator._on_poll_result({'status': 'ok', 'houdini': '22.0.429'})
+                assert controller.houdiniConnection['port'] == 45174
+                assert controller.houdiniConnection['state'] == 'connected'
+                controller._running = False
+                click(connection)
+                QTest.qWait(140)
+                view.grab().save(str(state / 'houdini-connection-menu.png'))
+                QTest.keyClick(view, Qt.Key_Escape)
+                coordinator._probe_port = None
+                coordinator._on_poll_result(None)
+                coordinator._on_poll_result(None)
+                assert controller.houdiniConnection['state'] == 'disconnected'
+                assert find('houdiniStatusDot').property('color').name() == '#ff4d4f'
+                launch.return_value = SimpleNamespace(poll=MagicMock(return_value=None))
+                click(connection)
+                click(find('launchHoudini_1'))
+                launch.assert_called_once_with(str(state), installs[1])
+                assert controller.houdiniConnection['state'] == 'launching'
+                coordinator._on_poll_result(None)
+                assert controller.houdiniConnection['state'] == 'launching'
+                coordinator._on_poll_result({'status': 'ok', 'houdini': '21.0.631'})
+                assert controller.houdiniConnection['state'] == 'connected'
+                # A process that exits before its Bridge connects must unlock
+                # launch actions so the same version can be tried again.
+                coordinator._on_bridge_lost()
+                launch.reset_mock()
+                process = SimpleNamespace(poll=MagicMock(return_value=None))
+                launch.return_value = process
+                coordinator.connection_action('launch:1')
+                process.poll.return_value = 1
+                coordinator._check_launch()
+                assert controller.houdiniConnection['state'] == 'disconnected'
+                click(connection)
+                assert find('launchHoudini_1').isEnabled()
+                process.poll.return_value = None
+                click(find('launchHoudini_1'))
+                assert launch.call_count == 2
+                assert controller.houdiniConnection['state'] == 'launching'
+                with patch.object(external.time, 'monotonic', return_value=coordinator._launch_deadline + 1):
+                    coordinator._check_launch()
+                assert controller.houdiniConnection['state'] == 'disconnected'
+                assert not coordinator._launch_watch.isActive()
+                coordinator.connection_action('launch:1')
+                process.poll.return_value = 0
+                with patch.object(external.time, 'monotonic', return_value=coordinator._launch_started_at + 4), \
+                     patch.object(external, 'is_houdini_running', return_value=True):
+                    coordinator._check_launch()
+                assert controller.houdiniConnection['state'] == 'launching'
+                with patch.object(external.time, 'monotonic', return_value=coordinator._launch_started_at + 4), \
+                     patch.object(external, 'is_houdini_running', return_value=False):
+                    coordinator._check_launch()
+                assert controller.houdiniConnection['state'] == 'disconnected'
+                process.poll.return_value = None
+                launch.side_effect = OSError('Offline launch fixture')
+                coordinator.connection_action('launch:0')
+                assert controller.houdiniConnection['state'] == 'disconnected'
+                launch.side_effect = None
+                launch.reset_mock()
+                coordinator.connection_action('launch:0')
+                launch.assert_called_once_with(str(state), installs[0])
+                coordinator._on_poll_result({'status': 'ok', 'houdini': '22.0.429'})
+                assert not coordinator._launch_watch.isActive()
+                controller._running = True
+                controller.runningChanged.emit()
+                controller.houdiniAction('launch:0')
+                assert launch.call_count == 1
+                controller._running = False
+                controller.runningChanged.emit()
+                controller.requestHoudiniAction.disconnect(coordinator.connection_action)
+            controller.update_houdini_connection(state='disconnected', version='', port=0,
+                                                sessions=[], installs=[], external=False)
             # One header entry owns settings. Switches retain live bindings and
             # differ by track, thumb position and check mark in either theme.
-            click(find('settingsButton'))
+            open_settings()
             preferences = find('settingsWindow')
             assert preferences.property('visible')
             assert preferences.property('sec') == 'general'
@@ -98,6 +302,7 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
             for theme in ['graphite', 'day']:
                 controller.setAppTheme(theme)
                 QTest.qWait(40)
+                assert view.quickWindow().color() == root.property('color')
                 before = find('switchTrack', toggle).property('color')
                 thumb_before = find('switchThumb', toggle).property('x')
                 click(toggle)
@@ -187,7 +392,7 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
             assert not preferences.property('visible')
             assert find('messageInput').property('text')
             find('messageInput').setProperty('text', '')
-            click(find('settingsButton'))
+            open_settings()
             for section in ['appearance', 'sessions', 'rules', 'plugins', 'memory', 'about']:
                 click(find('settingsNav_' + section))
                 assert preferences.property('sec') == section
@@ -279,7 +484,7 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
                 controller.setFontScale(scale)
                 view.resize(width, 820)
                 QTest.qWait(60)
-                click(find('settingsButton'))
+                open_settings()
                 assert preferences.property('compact')
                 assert not find('settingsNavigation').property('visible')
                 click(find('settingsSectionSelector'))
@@ -299,6 +504,25 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
                 click(find('settingsSectionSelector'))
                 click(find('menuItem_model'))
                 providers = find('settingsProviders')
+                custom_rows = [dict(id='align-one', name='GPT 6', active=True, configured=True,
+                                    models=[dict(name='gpt-test', context=128000, vision=False)], anthropic=False)]
+                with patch.object(controller, 'customProviderItems', return_value=custom_rows):
+                    for language in ['zh', 'en']:
+                        controller._lang = language
+                        controller.langChanged.emit()
+                        QMetaObject.invokeMethod(providers, 'reload')
+                        QTest.qWait(60)
+                        keys = [item['key'] for item in controller.builtinProviderItems()] + ['custom:align-one']
+                        for prefix in ['providerSelect_', 'providerConfig_']:
+                            cells = [find(prefix + key, providers) for key in keys]
+                            positions = [cell.mapToScene(QPointF(0, 0)).x() for cell in cells]
+                            assert max(positions) - min(positions) < 1, (language, prefix, positions)
+                            assert max(cell.width() for cell in cells) - min(cell.width() for cell in cells) < 1
+                        if language == 'zh':
+                            view.grab().save(str(state / ('provider-columns-' + str(width) + '.png')))
+                    controller._lang = 'zh'
+                    controller.langChanged.emit()
+                    QMetaObject.invokeMethod(providers, 'reload')
                 QMetaObject.invokeMethod(providers, 'startAdd')
                 QTest.qWait(60)
                 # The real form writes vision choices back into its model.
@@ -399,7 +623,7 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
             QTest.qWait(40)
             click(find('newChatButton', docked))
             assert len(controller._sessions) == 2
-            click(find('settingsButton'))
+            open_settings()
             click(find('settingsNav_sessions'))
             restore_confirmation = find('confirmSessionDeleteToggle', preferences)
             assert not restore_confirmation.property('checked')
@@ -587,7 +811,7 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
             import base64
             from PySide6.QtCore import QByteArray, QBuffer, QIODevice
             from PySide6.QtGui import QImage
-            image = QImage(1, 1, QImage.Format_RGB32)
+            image = QImage(80, 40, QImage.Format_RGB32)
             image.fill(Qt.white)
             png = QByteArray()
             buffer = QBuffer(png)
@@ -649,6 +873,18 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
             QTest.qWait(100)
             viewport = find('attachmentViewport')
             assert viewport.property('contentHeight') > viewport.height()
+            thumbnail = find('attachmentThumbnail_0')
+            frame = view.grab().toImage()
+            point = thumbnail.mapToScene(QPointF(0, 0))
+            sx, sy = frame.width() / view.width(), frame.height() / view.height()
+            def thumbnail_pixel(x, y):
+                return frame.pixelColor(int((point.x() + x) * sx), int((point.y() + y) * sy))
+            for x, y in [(1, thumbnail.height()/2), (thumbnail.width()/2, 1),
+                         (thumbnail.width()/2, thumbnail.height()-1)]:
+                pixel = thumbnail_pixel(x, y)
+                assert min(pixel.red(), pixel.green(), pixel.blue()) > 240, (x, y, pixel.name())
+            assert thumbnail_pixel(0, 0).name() == root.property('color').name()
+            view.grab().save(str(state / 'reference-thumbnails-rounded.png'))
             click(find('attachmentThumbnail_0'))
             assert find('attachmentPreview').property('visible')
             QTest.keyClick(view, Qt.Key_Escape)
@@ -685,6 +921,39 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
             controller._set_running(False)
             controller._session = None
             input_item.setProperty('text', '')
+            # A failed real send exposes a copy action, local send time and a
+            # draft recovery action; recovery preserves both draft and images.
+            controller.setProvider('openai')
+            model.clear()
+            controller._pending_images = [(sample, 'image/png')]
+            with patch.object(controller, '_simulate'):
+                assert controller.send('请重新检查节点。')
+            sent = model._items[0]['payload']
+            assert sent['sent_at'] > 0 and sent['id'] and sent['images'][0].startswith('file:')
+            controller._ui_done('HTTP 429: Too many pending requests, please retry later')
+            QTest.qWait(100)
+            assert model._items[0]['payload']['failed']
+            assert find('sentTime_0').property('text')
+            click(find('copyUserMessage_0'))
+            assert app.clipboard().text() == '请重新检查节点。'
+            input_item.setProperty('text', '保留现有草稿')
+            controller._pending_images = [('eA==', 'image/png')]
+            click(find('restoreFailedMessage_' + sent['id']))
+            assert input_item.property('text') == '请重新检查节点。\n\n保留现有草稿'
+            assert len(controller._pending_images) == 2
+            assert controller._pending_images[1] == (sample, 'image/png')
+            # Recovery itself does not send, change mode or duplicate attachments.
+            assert not controller.running
+            assert controller.restoreFailedMessage(sent['id'])
+            assert len(controller._pending_images) == 2
+            assert input_item.property('text') == '请重新检查节点。\n\n保留现有草稿'
+            serialized = controller._serialize_rows()
+            model.load(module.wrap_ai_rows(serialized))
+            QTest.qWait(80)
+            assert find('sentTime_0').property('text')
+            assert find('restoreFailedMessage_' + sent['id']).isVisible()
+            controller.clearImages()
+            input_item.setProperty('text', '')
             # The right rail navigates user turns and stays anchored while
             # asynchronously loaded / updated earlier rows change their heights.
             history = []
@@ -699,6 +968,32 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
             rail = find('chatTimeline')
             assert rail.property('visible') and rail.property('count') == 20
             assert chat.property('contentY') > chat.height()
+            # History and the input card share both edges, including the
+            # right-hand timeline gutter, sidebar resizing and large fonts.
+            for width, scale, sidebar, density in [(1180, 1.0, False, 'normal'), (710, 1.3, True, 'normal'),
+                                                   (420, 1.6, True, 'normal'), (420, 1.6, True, 'roomy')]:
+                controller.setFontScale(scale)
+                controller.setDensityKey(density)
+                view.resize(width, 820)
+                root.setProperty('sidebarExpanded', sidebar)
+                QTest.qWait(100)
+                card = find('composerCard')
+                message_row = find('chatMessage_1')
+                card_left = card.mapToScene(QPointF(0, 0)).x()
+                message_left = message_row.mapToScene(QPointF(0, 0)).x()
+                assert abs(card_left - message_left) < 1.1, (width, scale, card_left, message_left)
+                assert abs(card.width() - message_row.width()) < 1.1, (width, scale, card.width(), message_row.width())
+                for control_name in ['sendButton', 'contextUsage', 'modelSelector', 'modeSelector', 'attachmentButton']:
+                    control = find(control_name)
+                    control_left = control.mapToScene(QPointF(0, 0)).x()
+                    assert control_left >= card_left and control_left + control.width() <= card_left + card.width() + 1, (width, scale, density, control_name, card_left, card.width(), control_left, control.width())
+                if width == 1180:
+                    view.grab().save(str(state / 'history-composer-aligned.png'))
+            controller.setFontScale(1.0)
+            controller.setDensityKey('normal')
+            view.resize(440, 820)
+            root.setProperty('sidebarExpanded', False)
+            QTest.qWait(100)
             click(find('chatMarker_0', rail))
             assert chat.property('jumpTarget') == 0 and not chat.property('stick')
             assert chat.property('contentY') < 40
@@ -748,6 +1043,12 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
                     left = item.mapToScene(QPointF(0, 0)).x()
                     assert left >= right_edge - 1, (scale, width, name, left, right_edge)
                     assert left + item.width() <= view.width() + 1
+                status_label = find('houdiniStatusLabel')
+                assert status_label.width() >= status_label.implicitWidth(), (width, scale, status_label.width(), status_label.implicitWidth())
+                for name in ['houdiniConnectionButton', 'settingsButton']:
+                    item = find(name)
+                    left = item.mapToScene(QPointF(0, 0)).x()
+                    assert left >= 0 and left + item.width() <= view.width() + 1
                 drag_sidebar(-docked.width() - 100)
                 assert not docked.property('visible')
                 assert abs(chat.width() - full_width) < 1

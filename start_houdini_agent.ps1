@@ -31,7 +31,6 @@ if (-not $Install) {
 }
 
 $Hfs = $Install.Directory
-$HoudiniExe = Join-Path $Hfs "bin\houdini.exe"
 $PythonHome = Get-ChildItem -LiteralPath $Hfs -Directory |
     Where-Object {
         $_.Name -match '^python\d+$' -and
@@ -41,11 +40,10 @@ $PythonHome = Get-ChildItem -LiteralPath $Hfs -Directory |
     Sort-Object { [int]($_.Name -replace '^python', '') } -Descending |
     Select-Object -First 1
 
-if (-not (Test-Path -LiteralPath $HoudiniExe) -or -not $PythonHome) {
+if (-not $PythonHome) {
     throw "The selected Houdini installation is incomplete: $Hfs"
 }
 
-$PythonExe = Join-Path $PythonHome.FullName "python.exe"
 $PythonwExe = Join-Path $PythonHome.FullName "pythonw.exe"
 $SitePackages = Join-Path $PythonHome.FullName "lib\site-packages"
 $UiForced = Join-Path $PythonHome.FullName "lib\site-packages-ui-forced"
@@ -64,20 +62,11 @@ $env:PYTHONPATH = $PythonPaths -join ";"
 
 Push-Location $RepoRoot
 try {
-    & $PythonExe -B -c "from houdini_agent.launcher.houdini_discovery import install_all_packages; print(install_all_packages(r'$($RepoRoot.Replace("'", "''"))'))"
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to install the Houdini Agent bridge package."
-    }
-
-    & $PythonExe -B -c "from houdini_agent.bridge.client import BridgeClient; import sys; sys.exit(0 if BridgeClient().ping() else 1)"
-    $BridgeReady = $LASTEXITCODE -eq 0
-    if (-not $BridgeReady) {
-        Start-Process -FilePath $HoudiniExe -WorkingDirectory $Hfs
-        Write-Host "Started a new Houdini process so the updated bridge package can load."
-    }
-
+    # This installation supplies Python/Qt only. The Agent's connection menu
+    # owns starting Houdini after the user chooses a launch action.
+    # pythonw has no console; hiding its window also hides the Agent GUI.
     Start-Process -FilePath $PythonwExe -ArgumentList @((Join-Path $RepoRoot "launcher.py")) -WorkingDirectory $RepoRoot
-    Write-Host "Started Houdini Agent with Houdini $($Install.Version)."
+    Write-Host "Started Houdini Agent using the Python/Qt runtime from Houdini $($Install.Version)."
     Write-Host "Bridge endpoint: 127.0.0.1:45172 (auto-fallback through 45192)."
 } finally {
     Pop-Location

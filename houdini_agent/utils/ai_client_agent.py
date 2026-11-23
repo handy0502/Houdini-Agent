@@ -423,7 +423,8 @@ class AIClientAgentMixin:
                             'does not support', 'unsupported'
                         ))
                     )
-                    is_format_error = ('HTTP 4' in error_msg and not is_context_exceeded and iteration > 1)
+                    is_format_error = ('HTTP 4' in error_msg and 'HTTP 429' not in error_msg
+                                       and not is_context_exceeded and iteration > 1)
                     is_compress_fail = '压缩失败' in error_msg
 
                     is_recoverable = (

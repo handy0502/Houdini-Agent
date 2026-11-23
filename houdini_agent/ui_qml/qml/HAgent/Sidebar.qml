@@ -128,5 +128,13 @@ Rectangle {
                 color: Theme.textMute; font.family: Theme.fontBody; font.pixelSize: Theme.fXs
             }
         }
+        IconButton {
+            objectName: "settingsButton"
+            Layout.alignment: Qt.AlignRight
+            Layout.rightMargin: Theme.sp(6)
+            icon: "gear"; circular: true
+            tooltip: sidebar.loc("设置", "Settings")
+            onClicked: if (controller) controller.menuAction("settings")
+        }
     }
 }

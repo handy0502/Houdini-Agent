@@ -3,16 +3,17 @@
 
 import os
 import threading
+import time
 import traceback
 from pathlib import Path
 
 os.environ.setdefault("QML_DISABLE_DISK_CACHE", "1")
 
 try:
-    from PySide6.QtCore import QSettings, QTimer, QObject, Signal
+    from PySide6.QtCore import QSettings, QTimer, QObject, Signal, Slot
     from PySide6.QtWidgets import QApplication, QMainWindow
 except ImportError:
-    from PySide2.QtCore import QSettings, QTimer, QObject, Signal
+    from PySide2.QtCore import QSettings, QTimer, QObject, Signal, Slot
     from PySide2.QtWidgets import QApplication, QMainWindow
 
 from houdini_agent.bridge.client import BridgeClient
@@ -22,7 +23,6 @@ from houdini_agent.launcher.houdini_discovery import (
 from houdini_agent.ui_qml import host
 from houdini_agent.ui_qml.bridge_session import BridgeAgentSession
 from houdini_agent.ui_qml.controller import ChatModel, Controller
-from houdini_agent.ui_qml.houdini_picker import pick_houdini
 
 
 _GEO_ORG = ("HoudiniAI", "External")
@@ -46,9 +46,10 @@ class ExternalWindow(QMainWindow):
 
 class ExternalCoordinator(QObject):
     # 后台探测线程通过此信号把结果回传到 UI 线程（跨线程 emit 默认走队列连接）。
-    _probe_done = Signal(object)
+    _probe_done = Signal(object, int)
     # 后台构建好的聊天后端（BridgeAgentSession，失败为 None）回传到 UI 线程挂载。
     _session_ready = Signal(object)
+    _sessions_found = Signal(object)
 
     def __init__(self, win, controller, repo_root):
         super().__init__(win)
@@ -57,10 +58,20 @@ class ExternalCoordinator(QObject):
         self.repo_root = str(repo_root)
         self.bridge = BridgeClient()
         self.connected = False
-        self.prompted = False
         self.installs = []
-        self._running_seen_at_start = False
+        self._connect_requested = False
+        self._paused = False
+        self._connection_generation = 0
+        self._requested_port = None
+        self._discovering = False
+        self._launch_deadline = 0
+        self._launch_started_at = 0
+        self._launch_process = None
+        self._launch_watch = QTimer(win)
+        self._launch_watch.setInterval(500)
+        self._launch_watch.timeout.connect(self._check_launch)
         self._probing = False
+        self._probe_port = None
         self._building_session = False
         self._session_build_fails = 0
         self._misses = 0            # 已连接状态下心跳连续失败次数
@@ -71,6 +82,8 @@ class ExternalCoordinator(QObject):
         self.poll.timeout.connect(self._poll_tick)
         self._probe_done.connect(self._on_poll_result)
         self._session_ready.connect(self._on_session_ready)
+        self._sessions_found.connect(self._on_sessions_found)
+        self.controller.update_houdini_connection(external=True, state="connecting")
 
     def _log(self, msg):
         try:
@@ -84,18 +97,15 @@ class ExternalCoordinator(QObject):
 
     def start(self):
         self.installs = find_houdini_installs()
+        self.controller.update_houdini_connection(installs=[
+            {"version": item["version"], "path": item["path"]} for item in self.installs
+        ])
         self._ensure_packages()
         # ★ 不等 Bridge：先把聊天后端建好。没有 Houdini 也必须能正常聊天/用 Meshy，
         #   场景工具在 Bridge 连上后自动生效（BridgeClient 每次请求现连、端口动态解析）。
         self._start_session_build()
-        self._running_seen_at_start = is_houdini_running()
         self.poll.start()
         self._poll_tick()  # 立即非阻塞探测一次（结果异步回来）
-        if self._running_seen_at_start:
-            self.controller.toast.emit("检测到 Houdini 已打开，正在连接 Bridge…")
-            QTimer.singleShot(5000, self._maybe_prompt_for_bridge)
-        else:
-            QTimer.singleShot(300, self.show_launcher)
 
     def _ensure_packages(self):
         """给所有相关 Houdini 版本装集成包：写全部候选用户目录（注册表 Documents /
@@ -114,28 +124,34 @@ class ExternalCoordinator(QObject):
         只允许在后台线程调用。返回 ping 结果或 None。"""
         try:
             from houdini_agent.bridge import doctor
-            _port, info = doctor.ensure_connected()
-            return info
+            port, info = doctor.ensure_connected()
+            return dict(info, _bridge_port=port) if info else None
         except Exception:
             return None
 
-    def check_bridge(self):
-        """同步探测一次（仅用于用户主动触发的 prompt_relaunch；周期探测走 _poll_tick）。"""
-        if self.connected:
-            return True
-        if not self._probe():
-            return False
-        return self._attach()
-
-    def _attach(self):
+    def _attach(self, info):
         """Bridge 已响应：标记连接并广播。聊天后端在启动时就已异步构建（不依赖 Bridge），
         BridgeClient 每次请求现连，场景工具自此自动生效。轮询不停止而是降频为心跳，
         这样 Houdini 关闭/重启能被发现，恢复后自动重连。"""
+        if self._paused:
+            return False
+        self.bridge.set_enabled(True)
+        from houdini_agent.bridge.client import resolve_port
+        port = info.get("_bridge_port") or resolve_port()
+        changed = self.controller.houdiniConnection.get("port") != port
+        self.controller.update_houdini_connection(
+            state="connected", version=str(info.get("houdini") or ""), port=port, paused=False)
+        self._launch_deadline = 0
+        self._launch_process = None
+        self._launch_watch.stop()
         if self.connected:
+            if changed:
+                self.controller.toast.emit("已切换 Houdini 会话")
+                self.controller.refreshContext()
             return True
         self.connected = True
         self._misses = 0
-        self.poll.setInterval(5000)     # 心跳档：已连接时低频巡检
+        self.poll.setInterval(1500)
         if self.controller._session is not None:
             self.controller.toast.emit("已重新连接 Houdini Bridge" if self._ever_connected
                                        else "已连接 Houdini Bridge")
@@ -150,8 +166,11 @@ class ExternalCoordinator(QObject):
         return True
 
     def _on_bridge_lost(self):
-        """心跳连续丢失：进入断开状态并提速轮询等待恢复（恢复后 _attach 自动重连）。"""
+        """Clear the active connection as soon as its heartbeat is lost."""
         self.connected = False
+        current = self.controller.houdiniConnection
+        sessions = [item for item in current.get("sessions", []) if item["port"] != current.get("port")]
+        self.controller.update_houdini_connection(state="disconnected", version="", port=0, sessions=sessions)
         self._misses = 0
         self.poll.setInterval(1500)     # 恢复快轮询
         self.controller.toast.emit("Houdini 连接已断开——聊天不受影响，重新打开 Houdini 后会自动重连")
@@ -181,6 +200,7 @@ class ExternalCoordinator(QObject):
 
         threading.Thread(target=worker, name="HAgentSessionBuild", daemon=True).start()
 
+    @Slot(object)
     def _on_session_ready(self, session):
         """运行在 UI 线程：挂载后台构建好的聊天后端。"""
         self._building_session = False
@@ -200,66 +220,209 @@ class ExternalCoordinator(QObject):
             self.controller.toast.emit("已连接 Houdini Bridge")
 
     def _poll_tick(self):
-        """周期触发：在【后台线程】做可能阻塞的探测（ping+必要时扫描，最长约 1 秒），
-        避免冻结 UI 主线程——这是之前端口被占用时 GUI 卡死的根因。
-        未连接时是 1.5s 快轮询等待接入；已连接时是 5s 心跳巡检断线。"""
+        """Ping the active session directly; scan ports only while disconnected.
+
+        A failed heartbeat must reach the UI before a potentially slow scan of
+        every candidate port. Two short misses normally update within 3 seconds.
+        """
         if self.controller._session is None:
             self._start_session_build()   # 构建失败后的自动重试（最多 3 次）
-        if self._probing:
+        if self._paused or self._probing:
             return
         self._probing = True
+        requested_port = self._requested_port
+        self._probe_port = requested_port
+        from houdini_agent.bridge.client import resolve_port
+        heartbeat_port = resolve_port() if self.connected else None
+        generation = self._connection_generation
 
         def worker():
-            info = self._probe()
+            info = None
             try:
-                self._probe_done.emit(info)   # 跨线程：队列连接，槽在 UI 线程执行
+                if requested_port is not None:
+                    info = BridgeClient(port=requested_port, connect_timeout=0.3).ping()
+                elif heartbeat_port:
+                    info = BridgeClient(port=heartbeat_port, connect_timeout=0.15).ping()
+                else:
+                    info = self._probe()
+                if not isinstance(info, dict) or info.get("status") != "ok":
+                    info = None
+                elif requested_port is not None or heartbeat_port:
+                    info = dict(info, _bridge_port=requested_port if requested_port is not None else heartbeat_port)
+            except Exception as exc:
+                self._log("Bridge probe failed: %s" % exc)
+            try:
+                self._probe_done.emit(info, generation)
             except Exception:
                 pass
 
         threading.Thread(target=worker, name="HAgentBridgeProbe", daemon=True).start()
 
-    def _on_poll_result(self, info):
+    @Slot(object, int)
+    def _on_poll_result(self, info, generation=None):
         """运行在 UI 线程：应用后台探测结果（连接/断开状态机）。"""
         self._probing = False
+        if self._paused:
+            return
+        if generation is not None and generation != self._connection_generation:
+            self._poll_tick()
+            return
+        if not info:
+            self._check_launch()
+        # A user may select a session while an older background probe is still
+        # running. Ignore that result and verify the selected port first.
+        if self._probe_port != self._requested_port:
+            self._poll_tick()
+            return
         if info:
+            if self._requested_port is not None:
+                if self.controller.running:
+                    self._connect_requested = False
+                    self._requested_port = None
+                    self._paused = not self.connected
+                    self.bridge.set_enabled(self.connected)
+                    self.controller.update_houdini_connection(state="connected" if self.connected else "disconnected", paused=not self.connected)
+                    self.controller.toast.emit("当前任务已开始，暂不切换 Houdini 会话。")
+                    return
+                from houdini_agent.bridge.doctor import adopt_port
+                adopt_port(self._requested_port)
             self._misses = 0
-            if not self.connected:
-                self._attach()
+            self._attach(info)
+            self._connect_requested = False
+            self._requested_port = None
             return
-        if self.connected:
+        if self.connected and not self._connect_requested:
             self._misses += 1
-            if self._misses >= 2:      # 连续两次心跳失败（约 10 秒）才判断开，避免抖动误报
+            if self._misses >= 2:
                 self._on_bridge_lost()
+        if self._connect_requested:
+            self._connect_requested = False
+            self._requested_port = None
+            self.controller.toast.emit("未找到可连接的 Houdini Bridge。请先启动 Houdini；若尚未加载 Bridge，请保存场景后重启 Houdini。")
+            if self.connected:
+                self.bridge.set_enabled(True)
+                self.controller.update_houdini_connection(state="connected", paused=False)
+            else:
+                self._paused = True
+                self.controller.update_houdini_connection(paused=True)
+        if not self.connected and time.monotonic() >= self._launch_deadline:
+            self.controller.update_houdini_connection(state="disconnected", version="", port=0)
 
-    def _maybe_prompt_for_bridge(self):
-        if not self.connected:
-            self.controller.toast.emit("当前 Houdini 未加载 Bridge。已安装 Bridge，请从这里打开或重启 Houdini。")
-            self.show_launcher()
-
-    def show_launcher(self):
-        if self.connected or self.prompted:
+    def _refresh_sessions(self):
+        if self._discovering:
             return
-        self.prompted = True
-        if not self.installs:
-            self.installs = find_houdini_installs()
-        selected = pick_houdini(self.installs, self.win)
-        if selected:
+        self._discovering = True
+        self.controller.update_houdini_connection(busy=True)
+
+        def worker():
             try:
-                launch_houdini(self.repo_root, selected)
-                self.controller.toast.emit("已启动 Houdini，正在等待 Bridge 连接…")
+                from houdini_agent.bridge.doctor import discover_sessions
+                sessions = discover_sessions()
+            except Exception:
+                sessions = []
+            try:
+                self._sessions_found.emit(sessions)
+            except RuntimeError:
+                pass
+
+        threading.Thread(target=worker, name="HAgentSessionDiscovery", daemon=True).start()
+
+    @Slot(object)
+    def _on_sessions_found(self, sessions):
+        self._discovering = False
+        self.controller.update_houdini_connection(busy=False, sessions=sessions)
+
+    def _finish_launch(self, error):
+        self._launch_process = None
+        self._launch_deadline = 0
+        self._launch_watch.stop()
+        self._paused = not self.connected
+        self.bridge.set_enabled(self.connected)
+        self.controller.update_houdini_connection(state="connected" if self.connected else "disconnected", paused=not self.connected)
+        self.controller.toast.emit(error)
+
+    def _check_launch(self):
+        if not self._launch_deadline:
+            return
+        now = time.monotonic()
+        code = self._launch_process.poll() if self._launch_process is not None else None
+        # A successful wrapper may hand over to a running Houdini process.
+        exited = code is not None and (code != 0 or (
+            now - self._launch_started_at >= 3 and not is_houdini_running()))
+        if exited:
+            self._finish_launch("Houdini 启动进程已退出（退出码 %s），可以重新启动。" % code)
+        elif now >= self._launch_deadline:
+            self._finish_launch("等待 Houdini Bridge 连接超时，可以重试启动或连接已打开的会话。")
+
+    def _resume_connection(self):
+        self._paused = False
+        self._connection_generation += 1
+        self.bridge.set_enabled(False)
+        self.controller.update_houdini_connection(paused=True)
+        self.poll.start()
+
+    def _disconnect(self):
+        self._paused = True
+        self._connection_generation += 1
+        self._connect_requested = False
+        self._requested_port = None
+        self.connected = False
+        self._misses = 0
+        self._launch_deadline = 0
+        self._launch_process = None
+        self._launch_watch.stop()
+        self.bridge.set_enabled(False)
+        self.controller.update_houdini_connection(state="disconnected", version="", port=0, paused=True)
+        self.controller.refreshContext()
+        self.controller.toast.emit("已断开 Houdini，可从连接菜单选择其他会话。")
+
+    def connection_action(self, action):
+        if action == "refresh":
+            self._refresh_sessions()
+            return
+        if self.controller.running:
+            self.controller.toast.emit("请等待当前任务完成后再切换或启动 Houdini。")
+            return
+        if action == "disconnect":
+            self._disconnect()
+        elif action == "connect" or action.startswith("connect:"):
+            if action != "connect":
+                try:
+                    port = int(action.split(":", 1)[1])
+                except ValueError:
+                    return
+                sessions = self.controller.houdiniConnection.get("sessions", [])
+                if not any(item["port"] == port for item in sessions):
+                    return
+                self._requested_port = port
+            self._resume_connection()
+            self._connect_requested = True
+            self.controller.update_houdini_connection(state="connecting")
+            self._poll_tick()
+        elif action.startswith("launch:"):
+            self._check_launch()
+            if self.controller.houdiniConnection["state"] == "launching":
+                return
+            try:
+                index = int(action.split(":", 1)[1])
+                if not 0 <= index < len(self.installs):
+                    return
+                self._launch_process = launch_houdini(self.repo_root, self.installs[index])
+                if not self.connected:
+                    self._resume_connection()
+                self._launch_started_at = time.monotonic()
+                self._launch_deadline = self._launch_started_at + 120
+                self._launch_watch.start()
+                if not self.connected:
+                    self.controller.update_houdini_connection(state="launching")
+                self.controller.toast.emit("已启动 Houdini，Bridge 就绪后可连接。")
                 self.poll.start()
             except Exception as exc:
-                self.controller.toast.emit("启动 Houdini 失败：%s" % exc)
+                self._finish_launch("启动 Houdini 失败：%s" % exc)
 
     def prompt_relaunch(self):
-        """断开后由 UI 触发（如配置需要会话的功能时）：先探一次 Bridge，
-        已恢复就直接重连，否则重弹启动器让用户重新打开 Houdini。"""
-        self.connected = False
-        self.prompted = False
-        if self.check_bridge():
-            self.controller.toast.emit("已重新连接到 Houdini。")
-            return
-        self.show_launcher()
+        """Scene-dependent actions expose the same compact connection menu."""
+        self.controller.openHoudiniMenu.emit()
 
 
 def _app_icon():
@@ -299,7 +462,8 @@ def show_tool():
 
     win = ExternalWindow()
     win.setWindowTitle("Houdini Agent")
-    win.setStyleSheet("QMainWindow { background-color: #0d0d0d; }")
+    win.setPalette(view.palette())
+    win.setAutoFillBackground(True)
     win.setCentralWidget(view)
     win.setMinimumSize(420, 560)
     geo = QSettings(*_GEO_ORG).value("geometry")
@@ -318,6 +482,7 @@ def show_tool():
     coord = ExternalCoordinator(win, controller, repo_root)
     try:
         controller.requestOpenHoudini.connect(coord.prompt_relaunch)
+        controller.requestHoudiniAction.connect(coord.connection_action)
     except Exception:
         pass
     win._controller = controller

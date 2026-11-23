@@ -88,6 +88,25 @@ def test_scan_returns_none_when_all_dead(monkeypatch):
     assert doctor.scan_for_bridge() == (None, None)
 
 
+def test_discover_sessions_does_not_switch_active_port(monkeypatch):
+    monkeypatch.setenv("HAGENT_BRIDGE_PORT", "45172")
+    monkeypatch.setattr(doctor, "_candidate_ports", lambda: [45172, 45173, 45174])
+    responses = {45172: None, 45173: {"status": "ok", "houdini": "22.0.429"},
+                 45174: {"status": "ok", "houdini": "21.0.631"}}
+    monkeypatch.setattr(doctor, "_ping", responses.get)
+    assert doctor.discover_sessions() == [
+        {"port": 45173, "version": "22.0.429"}, {"port": 45174, "version": "21.0.631"}]
+    assert resolve_port() == 45172
+
+
+def test_discover_sessions_finds_running_bridge(monkeypatch, fake_bridge):
+    dead = _free_port()
+    monkeypatch.setenv("HAGENT_BRIDGE_PORT", str(dead))
+    monkeypatch.setattr(doctor, "_candidate_ports", lambda: [dead, fake_bridge])
+    assert doctor.discover_sessions() == [{"port": fake_bridge, "version": "21.0.test"}]
+    assert resolve_port() == dead
+
+
 def test_ensure_connected_adopts_found_port(monkeypatch, fake_bridge):
     dead = _free_port()
     monkeypatch.setenv("HAGENT_BRIDGE_PORT", str(dead))       # 解析端口指向死端口

@@ -40,6 +40,31 @@ def _bare_controller(tmp_path):
     return c
 
 
+def test_failed_draft_restores_only_owned_images(tmp_path):
+    c = _bare_controller(tmp_path)
+    QtCore.QObject.__init__(c)
+    c._running = False
+    c._pending_images = [('eA==', 'image/png')]
+    c._model = C.ChatModel()
+    owned = c._externalize_image('data:image/png;base64,eQ==')
+    outside = tmp_path / 'outside.png'
+    outside.write_bytes(b'private')
+    c._model.append({'type': 'user', 'payload': {
+        'id': 'failed', 'failed': True, 'text': 'original',
+        'images': [owned, outside.as_uri(), 'file://remote/secret.png', 'data:image/png;base64,!']}})
+    drafts, toasts = [], []
+    c.restoreFailedDraft.connect(drafts.append)
+    c.toast.connect(toasts.append)
+    assert c.restoreFailedMessage('failed')
+    assert drafts == ['original']
+    assert c._pending_images == [('eA==', 'image/png'), ('eQ==', 'image/png')]
+    assert toasts
+    assert not c.restoreFailedMessage('other')
+    c._running = True
+    assert not c.restoreFailedMessage('failed')
+    assert drafts == ['original']
+
+
 # ---------------------------------------------------------------- BlockModel
 class TestBlockModelSync:
     def test_unchanged_rows_are_not_renotified(self):

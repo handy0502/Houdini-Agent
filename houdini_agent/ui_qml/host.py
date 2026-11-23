@@ -10,11 +10,11 @@ from pathlib import Path
 
 try:
     from PySide6.QtCore import QUrl
-    from PySide6.QtGui import QFont
+    from PySide6.QtGui import QFont, QPalette
     from PySide6.QtQuickWidgets import QQuickWidget
 except ImportError:  # Houdini <= 20.5 (Qt5)
     from PySide2.QtCore import QUrl
-    from PySide2.QtGui import QFont
+    from PySide2.QtGui import QFont, QPalette
     from PySide2.QtQuickWidgets import QQuickWidget
 
 from .controller import ChatModel, Controller
@@ -122,6 +122,21 @@ def create_view(parent=None, controller=None, model=None):
     ctx.setContextProperty("controller", controller)
     view.setResizeMode(QQuickWidget.SizeRootObjectToView)
     view.setSource(QUrl.fromLocalFile(str(MAIN_QML)))
+    root = view.rootObject()
+    if root is not None:
+        # The native widget and render target must match QML before the first
+        # frame (and when its framebuffer is recreated after a resize).
+        def sync_background():
+            background = root.property("color")
+            view.setClearColor(background)
+            palette = view.palette()
+            palette.setColor(QPalette.Window, background)
+            palette.setColor(QPalette.Base, background)
+            view.setPalette(palette)
+
+        sync_background()
+        root.colorChanged.connect(sync_background)
+        view.setAutoFillBackground(True)
 
     # keep python refs alive
     view._controller = controller
