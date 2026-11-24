@@ -1094,7 +1094,7 @@ class RunMixin:
             #   避免 LLM 在关闭长期记忆的情况下仍调用它读到污染性经验。
             if not self._is_memory_active():
                 tools = [t for t in tools
-                         if t.get('function', {}).get('name') != 'search_memory']
+                         if t.get('function', {}).get('name') not in ('search_memory', 'save_memory')]
 
             # ★ 非视觉模型：capture_viewport 降级为仅保存文件（不注入图片）
             # 不再移除工具——AI 仍可截图保存让用户自行查看

@@ -14,6 +14,7 @@ from typing import List, Dict, Optional, Any, Callable, Generator, Tuple
 from urllib.parse import quote_plus
 
 from shared.common_utils import load_config, save_config
+from .memory_tools import SAVE_MEMORY_TOOL
 
 # 强制使用本地 lib 目录中的依赖库
 _lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'lib')
@@ -866,6 +867,7 @@ HOUDINI_TOOLS = [
             }
         }
     },
+    SAVE_MEMORY_TOOL,
     # ★ 长期记忆主动搜索工具
     {
         "type": "function",

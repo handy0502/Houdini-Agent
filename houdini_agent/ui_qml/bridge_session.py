@@ -90,6 +90,9 @@ class BridgeAgentSession:
             mode=tool_mode or {"Ask": "ask", "Plan": "plan_planning"}.get(mode, "agent"),
         )
         # 非视觉模型默认禁用视口截图检查工具（依赖把图片回注给模型分析）
+        if not memory:
+            from houdini_agent.utils.memory_tools import MEMORY_TOOLS
+            tools_override = [t for t in tools_override if t.get("function", {}).get("name") not in MEMORY_TOOLS]
         if not supports_vision and tools_override:
             tools_override = [
                 t for t in tools_override
@@ -147,26 +150,5 @@ class BridgeAgentSession:
 
     @staticmethod
     def _context_messages(query, rag, memory):
-        out = []
-        if rag:
-            try:
-                from houdini_agent.utils.doc_rag import get_doc_index
-                s = get_doc_index().auto_retrieve(query, max_chars=1200)
-                if s:
-                    out.append({"role": "system", "content": s})
-            except Exception:
-                pass
-        if memory:
-            try:
-                from houdini_agent.utils.memory_store import get_memory_store
-                ms = get_memory_store()
-                parts = []
-                for r in ms.get_core_memories(5):
-                    parts.append("- " + str(getattr(r, "rule_text", r)))
-                for r, _score in ms.search_episodic(query, top_k=3):
-                    parts.append("- " + str(getattr(r, "task", r)))
-                if parts:
-                    out.append({"role": "system", "content": "长期记忆参考:\n" + "\n".join(parts)})
-            except Exception:
-                pass
-        return out
+        from houdini_agent.ui_qml.agent_session import AgentSession
+        return AgentSession._context_messages(query, rag, memory)

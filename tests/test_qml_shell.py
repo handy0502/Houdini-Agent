@@ -30,6 +30,12 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
         from houdini_agent.ui_qml import controller as module
         from houdini_agent.ui_qml.host import create_view
         state = Path(sys.argv[1])
+        from houdini_agent.utils.memory_store import MemoryStore
+        from houdini_agent.utils.embedding import LocalEmbedder
+        with patch.object(LocalEmbedder, '_try_load_model'):
+            offline_embedder = LocalEmbedder(cache_dir=state / 'embeddings')
+        offline_embedder._backend = 'fallback'
+        memory_db = MemoryStore(state / 'memory.db', embedder=offline_embedder)
         settings = QSettings(str(state / 'prefs.ini'), QSettings.IniFormat)
         for key, value in [('app_theme', 'noir'), ('accent_key', 'warm'), ('font_family_key', 'editorial')]:
             settings.setValue(key, value)
@@ -43,7 +49,8 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
              patch.object(module.Controller, '_migrate_legacy_sessions'), \
              patch.object(module.Controller, '_auto_refresh_models_if_stale'), \
              patch('shared.common_utils.get_repo_root', return_value=str(state)), \
-             patch('houdini_agent.meshy.telemetry.start'):
+             patch('houdini_agent.meshy.telemetry.start'), \
+             patch('houdini_agent.utils.memory_store.get_memory_store', return_value=memory_db):
             model = module.ChatModel()
             controller = module.Controller(model, use_backend=False)
             assert (controller.appTheme, controller.accentKey, controller.fontFamilyKey) == ('graphite', 'neutral', 'modern')
@@ -296,6 +303,39 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
             preferences = find('settingsWindow')
             assert preferences.property('visible')
             assert preferences.property('sec') == 'general'
+            # Language is a single dropdown; picking a value updates the app
+            # through the existing persistence path, including dialog labels.
+            from houdini_agent.ui import i18n
+            controller._lang = 'zh'
+            controller.langChanged.emit()
+            page = find('settingsPageScroll').property('contentItem')
+            page.setProperty('contentY', page.property('contentHeight') - page.property('height'))
+            QTest.qWait(60)
+            assert find('languageSelector').property('label') == '中文'
+            with patch.object(i18n, 'QSettings', return_value=settings):
+                i18n.set_language('zh', persist=False)
+                click(find('languageSelector'))
+                assert find('languageMenu').property('visible')
+                click(find('menuItem_en', find('languageMenu')))
+                assert controller.lang == 'en' and find('languageSelector').property('label') == 'English'
+                assert settings.value('language') == 'en'
+                controller.openApiKeyDialog.emit('glm')
+                QTest.qWait(60)
+                assert find('confirmApiKeyButton').property('label') == 'Confirm'
+                QTest.keyClick(view, Qt.Key_Escape)
+                QTest.qWait(60)
+                page.setProperty('contentY', page.property('contentHeight') - page.property('height'))
+                QTest.qWait(60)
+                click(find('languageSelector'))
+                click(find('menuItem_zh', find('languageMenu')))
+                assert controller.lang == 'zh' and settings.value('language') == 'zh'
+                controller.openApiKeyDialog.emit('glm')
+                QTest.qWait(60)
+                assert find('confirmApiKeyButton').property('label') == '确认'
+                QTest.keyClick(view, Qt.Key_Escape)
+                QTest.qWait(60)
+            page.setProperty('contentY', 0)
+            QTest.qWait(60)
             toggle = find('thinkingToggle')
             initial_thinking = controller.showThinking
             assert toggle.property('checked') == initial_thinking
@@ -344,16 +384,51 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
                 assert option.property('on') and option.property('color') == option.property('dot')
                 bubble_colors.add(find('userMessageBubble').property('color').name())
             assert len(bubble_colors) == 5, bubble_colors
-            click(find('appearanceOption_mono'))
+            def pick_setting(name, value):
+                field = find(name)
+                viewport = find('settingsPageScroll').property('contentItem')
+                offset = field.mapToItem(viewport, QPointF(0, 0)).y()
+                viewport.setProperty('contentY', max(0, min(viewport.property('contentHeight') - viewport.height(),
+                    viewport.property('contentY') + offset - viewport.height()/2)))
+                QTest.qWait(60)
+                click(field)
+                menu = find(name + 'Menu')
+                assert menu.property('visible')
+                assert abs(menu.property('width') - field.width()) < 1
+                assert not find(name + 'Label').property('truncated')
+                for item in menu.findChildren(QObject):
+                    if item.property('truncated') is not None:
+                        assert not item.property('truncated'), item.property('text')
+                click(find('menuItem_' + value, menu))
+            pick_setting('fontFamilySelector', 'mono')
             assert controller.fontFamilyKey == 'mono'
-            click(find('appearanceOption_modern'))
+            assert settings.value('font_family_key') == 'mono'
+            pick_setting('fontFamilySelector', 'modern')
             assert controller.fontFamilyKey == 'modern'
-            click(find('appearanceOption_compact'))
+            assert find('fontFamilySelector').property('label') == controller.tr('现代')
+            pick_setting('densitySelector', 'compact')
             compact_height = find('composerCard').height()
-            click(find('appearanceOption_roomy'))
+            pick_setting('densitySelector', 'roomy')
             assert controller.densityKey == 'roomy'
+            assert settings.value('density_key') == 'roomy'
             assert find('composerCard').height() > compact_height
-            click(find('appearanceOption_normal'))
+            pick_setting('densitySelector', 'normal')
+            for language, scale in [('zh', 1.0), ('en', 1.0), ('en', 1.3), ('zh', 1.0)]:
+                controller._lang = language
+                controller.langChanged.emit()
+                controller.setFontScale(scale)
+                QTest.qWait(60)
+                font_selector, density_selector = find('fontFamilySelector'), find('densitySelector')
+                assert font_selector.width() == density_selector.width()
+                assert font_selector.width() < 128 * scale
+                for selector_name in ['fontFamilySelector', 'densitySelector']:
+                    selector = find(selector_name)
+                    indicator = find(selector_name + 'Indicator')
+                    right_gap = selector.width() - indicator.x() - indicator.width()
+                    assert abs(right_gap - round(8 * scale)) < 1
+                pick_setting('fontFamilySelector', 'modern')
+                pick_setting('densitySelector', 'normal')
+            view.grab().save(str(state / 'appearance-dropdowns.png'))
             # Header actions are still reachable after moving into settings;
             # browser / network / filesystem writes are mocked at their boundary.
             click(find('settingsNav_meshy'))
@@ -396,6 +471,25 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
             for section in ['appearance', 'sessions', 'rules', 'plugins', 'memory', 'about']:
                 click(find('settingsNav_' + section))
                 assert preferences.property('sec') == section
+            click(find('settingsNav_memory'))
+            management = find('settingsManagement')
+            click(find('addMemoryButton', management))
+            editor = find('memoryEditor', management)
+            assert editor.property('visible')
+            assert not find('saveMemoryButton', editor).property('enabled')
+            content = find('memoryContentInput', editor)
+            content.setProperty('text', 'Prefer native Houdini nodes and preserve existing names.')
+            click(find('memoryCategorySelector', editor))
+            category_menu = find('memoryCategoryMenu', editor)
+            click(visual_find(category_menu.property('contentItem'), 'menuItem_workflow'))
+            view.grab().save(str(state / 'add-memory.png'))
+            click(find('saveMemoryButton', editor))
+            assert not editor.property('visible') and management.property('tab') == 1
+            saved_memories = controller.memoryItems('semantic')
+            assert len(saved_memories) == 1
+            assert saved_memories[0]['body'] == 'Prefer native Houdini nodes and preserve existing names.'
+            assert saved_memories[0]['title'] == 'workflow'
+            click(find('settingsNav_about'))
             # Informational children return to the same settings section.
             click(find('settingsCacheLocation'))
             info = find('infoDialog')
@@ -513,7 +607,7 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
                         QMetaObject.invokeMethod(providers, 'reload')
                         QTest.qWait(60)
                         keys = [item['key'] for item in controller.builtinProviderItems()] + ['custom:align-one']
-                        for prefix in ['providerSelect_', 'providerConfig_']:
+                        for prefix in ['providerConfig_']:
                             cells = [find(prefix + key, providers) for key in keys]
                             positions = [cell.mapToScene(QPointF(0, 0)).x() for cell in cells]
                             assert max(positions) - min(positions) < 1, (language, prefix, positions)
@@ -543,6 +637,172 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
             view.resize(1180, 820)
             QTest.qWait(60)
             docked = find('dockedSidebar')
+            # Presence is distinct from verification; choosing a model changes
+            # the provider/model pair without sending a chat request.
+            from houdini_agent.utils.ai_client_providers import AIClientProvidersMixin
+            from houdini_agent.ui_qml import provider_check
+            previous_provider, previous_model = controller.provider, controller.model
+            check_client = SimpleNamespace(_api_keys={'openai': 'offline-test-key'})
+            def save_test_key(key, persist=False, provider='openai'):
+                check_client._api_keys[provider] = key
+                return True
+            check_client.set_api_key = save_test_key
+            with patch.object(controller, '_session', SimpleNamespace(client=check_client, history=[])), \
+                 patch.object(AIClientProvidersMixin, '_read_api_key', return_value=None), \
+                 patch.object(controller, '_sub_logged_in', return_value=False), \
+                 patch.object(provider_check, 'check_model', return_value='ok') as check:
+                controller.setProvider('openai')
+                controller.setModel(controller._provider_model_names('openai')[0])
+                open_settings()
+                click(find('settingsNav_model'))
+                provider_page = find('providerListScroll').property('contentItem')
+                def show_provider_control(name):
+                    item = find(name)
+                    offset = item.mapToItem(provider_page, QPointF(0, 0)).y()
+                    provider_page.setProperty('contentY', max(0, min(
+                        provider_page.property('contentHeight') - provider_page.height(),
+                        provider_page.property('contentY') + offset - provider_page.height()/2)))
+                    QTest.qWait(60)
+                    return find(name)
+                assert root.findChild(QObject, 'providerSelect_openai') is None
+                assert root.findChild(QObject, 'verifyProvider_openai') is None
+                assert root.findChild(QObject, 'providerStatus_openai') is None
+                before_check_color = find('providerDot_openai').property('color')
+                assert before_check_color.blue() > before_check_color.red()
+                missing_color = find('providerDot_duojie').property('color')
+                assert missing_color.red() > missing_color.green()
+                click(show_provider_control('providerConfig_openai'))
+                assert find('providerKeyField_input').property('text') == '••••••••'
+                assert QQmlExpression(qmlContext(find('providerKeyField_input')), find('providerKeyField_input'), 'echoMode === TextInput.Password').evaluate()[0]
+                assert root.findChild(QObject, 'useConfigModel_0') is None
+                assert root.findChild(QObject, 'verifyConfigModel_0') is None
+                click(find('verifyConfigProvider'))
+                for _ in range(40):
+                    QTest.qWait(25)
+                    if find('configProviderStatus').property('text') == '已验证可用':
+                        break
+                check.assert_called_once()
+                assert check.call_args.args[0]['model'] == controller._provider_model_names('openai')[0]
+                assert find('configProviderStatus').property('text') == '已验证可用'
+                assert not find('verifyConfigProvider').property('enabled')
+                controller.setModel(controller._provider_model_names('openai')[1])
+                QTest.qWait(40)
+                assert find('configProviderStatus').property('text') == '已验证可用'
+                assert find('providerDot_openai').property('color') == before_check_color
+                view.grab().save(str(state / 'provider-config.png'))
+                click(find('backFromProviderConfig'))
+                assert find('providerListScroll').property('visible')
+                assert find('providerCurrent_openai').property('visible')
+                assert not find('providerUse_openai').property('visible')
+                controller.setProvider('duojie')
+                QTest.qWait(60)
+                verified_color = find('providerDot_openai').property('color')
+                assert verified_color.green() > max(verified_color.red(), verified_color.blue())
+                # The hover action stays under the pointer without shifting Configuration.
+                QTest.mouseMove(view, QPointF(view.width() - 5, view.height() - 5).toPoint())
+                QTest.qWait(40)
+                assert not find('providerUse_openai').property('visible')
+                use = show_provider_control('providerUse_openai')
+                config_x = find('providerConfig_openai').mapToScene(QPointF(0, 0)).x()
+                QTest.mouseMove(view, use.mapToScene(QPointF(use.width()/2, use.height()/2)).toPoint())
+                QTest.qWait(40)
+                assert use.property('visible')
+                assert find('providerConfig_openai').mapToScene(QPointF(0, 0)).x() == config_x
+                controller._set_running(True)
+                QTest.qWait(40)
+                assert not use.property('enabled')
+                controller._set_running(False)
+                click(use)
+                assert controller.provider == 'openai'
+                assert find('providerCurrent_openai').property('visible')
+                assert not find('providerUse_openai').property('visible')
+                assert find('providerDot_openai').property('color') == before_check_color
+                check.assert_called_once()
+                click(show_provider_control('providerConfig_openai'))
+                assert controller.submitApiKey('openai', 'replacement-offline-key')
+                QTest.qWait(60)
+                assert find('configProviderStatus').property('text') == '已配置 · 未验证'
+                controller._set_running(True)
+                QTest.qWait(40)
+                assert not find('verifyConfigProvider').property('enabled')
+                controller._set_running(False)
+                click(find('backFromProviderConfig'))
+                controller.setProvider('duojie')
+                QTest.qWait(60)
+                unverified_color = find('providerDot_openai').property('color')
+                assert min(unverified_color.red(), unverified_color.green()) > unverified_color.blue()
+                view.grab().save(str(state / 'provider-status-list.png'))
+                saved = controller.saveCustomProvider(json.dumps(dict(name='Offline custom',
+                    base_url='https://offline.invalid/v1', api_key='offline-saved-key',
+                    models=[dict(name='offline-model', context=256000, vision=True)])))
+                assert saved['ok']
+                QTest.qWait(40)
+                click(show_provider_control('providerConfig_custom:' + saved['id']))
+                assert find('providerConfigScroll').property('contentItem').property('contentY') == 0
+                assert find('providerKeyField_input').property('text') == '••••••••'
+                view.grab().save(str(state / 'provider-custom-config.png'))
+                click(find('saveProviderButton'))
+                assert controller._custom_provider('custom:' + saved['id'])['api_key'] == 'offline-saved-key'
+                click(show_provider_control('providerConfig_custom:' + saved['id']))
+                key_field = find('providerKeyField_input')
+                key_field.forceActiveFocus()
+                QTest.keyClick(view, Qt.Key_A, Qt.ControlModifier)
+                QTest.keyClicks(view, 'offline-replacement-key')
+                assert find('verifyConfigProvider').property('enabled')
+                assert find('configProviderStatus').property('text') == '配置已修改，可直接验证'
+                click(find('verifyConfigProvider'))
+                for _ in range(40):
+                    QTest.qWait(25)
+                    if find('configProviderStatus').property('text') == '已验证可用':
+                        break
+                assert find('settingsProviders').property('editingId') == saved['id']
+                assert find('configProviderStatus').property('text') == '已验证可用'
+                assert check.call_args.args[0]['key'] == 'offline-replacement-key'
+                assert check.call_args.args[0]['model'] == 'offline-model'
+                delete_button, save_button = find('deleteProviderButton'), find('saveProviderButton')
+                delete_right = delete_button.mapToScene(QPointF(delete_button.width(), 0)).x()
+                save_left = save_button.mapToScene(QPointF(0, 0)).x()
+                assert 0 < save_left - delete_right < 20
+                view.grab().save(str(state / 'provider-inline-verification.png'))
+                click(find('saveProviderButton'))
+                assert controller._custom_provider('custom:' + saved['id'])['api_key'] == 'offline-replacement-key'
+                controller.deleteCustomProvider(saved['id'])
+                # A brand-new profile can be verified before ever clicking Save.
+                QMetaObject.invokeMethod(find('settingsProviders'), 'startAdd')
+                QTest.qWait(40)
+                assert not find('verifyConfigProvider').property('enabled')
+                def enter_provider_field(name, value):
+                    field = find(name + '_input')
+                    field.forceActiveFocus()
+                    QTest.keyClick(view, Qt.Key_A, Qt.ControlModifier)
+                    QTest.keyClicks(view, value)
+                enter_provider_field('providerNameField', 'New inline profile')
+                enter_provider_field('providerUrlField', 'https://new-offline.invalid/v1')
+                enter_provider_field('providerKeyField', 'offline-new-key')
+                assert not find('verifyConfigProvider').property('enabled')
+                enter_provider_field('providerModelName_0', 'new-offline-model')
+                assert find('verifyConfigProvider').property('enabled')
+                config_view = find('providerConfigScroll').property('contentItem')
+                verify = find('verifyConfigProvider')
+                offset = verify.mapToItem(config_view, QPointF(0, 0)).y()
+                config_view.setProperty('contentY', max(0, config_view.property('contentY') + offset - config_view.height()/2))
+                QTest.qWait(60)
+                click(verify)
+                for _ in range(40):
+                    QTest.qWait(25)
+                    if find('configProviderStatus').property('text') == '已验证可用':
+                        break
+                new_id = find('settingsProviders').property('editingId')
+                assert new_id not in ('new', '')
+                assert find('configProviderStatus').property('text') == '已验证可用'
+                assert check.call_args.args[0]['model'] == 'new-offline-model'
+                assert check.call_args.args[0]['key'] == 'offline-new-key'
+                click(find('backFromProviderConfig'))
+                assert find('providerListScroll').property('visible')
+                controller.deleteCustomProvider(new_id)
+                click(find('settingsCloseButton'))
+            controller.setProvider(previous_provider)
+            controller.setModel(previous_model)
             assert docked.property('visible')
             assert root.findChild(QObject, 'sidebarCollapse') is None
             assert root.findChild(QObject, 'sidebarToggle') is None
@@ -1071,6 +1331,55 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
             QTest.qWait(80)
             assert not rail.property('visible') and rail.property('count') == 0
             assert chat.property('jumpTarget') == -1 and chat.property('stick')
+            # Reasoning expands while this response streams, collapses at
+            # completion (including errors), and remains manually inspectable.
+            controller.setThink(True)
+            controller.setProvider('openai')
+            view.resize(1180, 820)
+            def thought(row):
+                item = visual_find(find('chatMessage_' + str(row)), 'thinkingBlock')
+                assert item is not None, 'Missing reasoning in message ' + str(row)
+                return item
+            with patch.object(controller, '_simulate'):
+                assert controller.send('Reasoning collapse test')
+                controller._ui_think('First reasoning paragraph.')
+                controller._do_flush()
+                QTest.qWait(60)
+                first_thought = thought(1)
+                assert first_thought.property('streaming') and not first_thought.property('collapsed')
+                click(find('thinkingBlockHeader', first_thought))
+                assert first_thought.property('collapsed')
+                controller._ui_think(' More reasoning.')
+                controller._do_flush()
+                QTest.qWait(40)
+                assert first_thought.property('collapsed')  # Streaming honors manual collapse.
+                click(find('thinkingBlockHeader', first_thought))
+                controller._ui_done('')
+                QTest.qWait(60)
+                assert first_thought.property('collapsed') and not first_thought.property('streaming')
+                click(find('thinkingBlockHeader', first_thought))
+                assert not first_thought.property('collapsed')
+                assert controller.send('Second reasoning turn')
+                controller._ui_think('Second reasoning paragraph.')
+                controller._do_flush()
+                QTest.qWait(60)
+                second_thought = thought(3)
+                assert first_thought is not second_thought
+                assert not first_thought.property('collapsed')  # A new turn leaves older user choices alone.
+                assert not second_thought.property('collapsed')
+                controller._ui_done('Offline test failure')
+                QTest.qWait(60)
+                assert second_thought.property('collapsed')
+                # A restored interrupted stream is historical, not a live run.
+                controller._snapshot_active()
+                previous_chat = controller._active
+                controller.newSession()
+                stored = controller._sessions[previous_chat]['rows']
+                stored[1]['payload']['blocks'][0]['active'] = True
+                controller.switchSession(previous_chat)
+                QTest.qWait(80)
+                assert thought(1).property('collapsed')
+                assert thought(3).property('collapsed')
             # Render user / assistant delegates, including tool and prose blocks.
             model.load(module.wrap_ai_rows([
                 {'type': 'user', 'payload': {'text': '检查选中的节点并解释参数。'}},
@@ -1081,6 +1390,19 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
                 ]}},
             ]))
             QTest.qWait(120)
+            assert find('thinkingBlock').property('collapsed')  # Legacy reasoning has no active flag.
+            duration_block = find('thinkingBlock')
+            for raw, formatted in [('59.9s', '59 s'), ('60.0s', '1 min 0 s'), ('61.2s', '1 min 1 s'),
+                                   ('515.3s', '8 min 35 s'), ('120.0s', '2 min 0 s'), ('…', '…')]:
+                duration_block.setProperty('block', {'dur': raw, 'text': 'Reasoning'})
+                assert duration_block.property('formattedDuration') == formatted
+            thinking_icon = find('thinkingCollapseIcon')
+            execution_icon = find('executionCollapseIcon')
+            assert thinking_icon.width() == execution_icon.width()
+            click(thinking_icon)
+            assert not duration_block.property('collapsed')
+            click(thinking_icon)
+            assert duration_block.property('collapsed')
             # At screenshot-sized / high-DPI widths, opening navigation must
             # reflow the existing conversation and composer instead of covering it.
             for scale, width in [(1.0, 710), (1.3, 710), (1.0, 440), (1.0, 1180)]:

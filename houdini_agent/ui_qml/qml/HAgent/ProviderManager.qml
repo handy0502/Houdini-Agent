@@ -3,56 +3,31 @@ import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import HAgent
 
-// 多供应商管理：内置 provider（只读 + API Key）+ 自定义供应商（增删改，每个含多模型）。
-// 窄面板友好：列表态与编辑态切换（不再两栏挤）。
 Item {
     id: pm
     property bool active: true
     property var customs: []
     property var builtins: []
-    property string editingId: ""      // "" 列表态；"new" 新增；其余为编辑某 id
-    readonly property real selectColumnWidth: Math.ceil(Math.max(useMetrics.width, currentMetrics.width)) + 22
-    readonly property real configColumnWidth: Math.ceil(Math.max(apiMetrics.width, loginMetrics.width, editMetrics.width)) + 22
-
-    TextMetrics { id: useMetrics; text: pm.loc("使用"); font.family: Theme.fontBody; font.pixelSize: Theme.fSm }
-    TextMetrics { id: currentMetrics; text: pm.loc("当前"); font.family: Theme.fontBody; font.pixelSize: Theme.fSm }
-    TextMetrics { id: apiMetrics; text: "API Key"; font.family: Theme.fontBody; font.pixelSize: Theme.fSm }
-    TextMetrics { id: loginMetrics; text: pm.loc("订阅登录"); font.family: Theme.fontBody; font.pixelSize: Theme.fSm }
-    TextMetrics { id: editMetrics; text: pm.loc("编辑"); font.family: Theme.fontBody; font.pixelSize: Theme.fSm }
-
-    component ActionColumn: Item {
-        id: actionColumn
-        property string label: ""
-        property bool readOnly: false
-        signal clicked()
-        implicitHeight: Theme.controlHeight
-        Layout.minimumWidth: implicitWidth
-        Layout.maximumWidth: implicitWidth
-        Pill {
-            anchors.centerIn: parent
-            visible: !actionColumn.readOnly
-            label: actionColumn.label
-            onClicked: actionColumn.clicked()
-        }
-        Text {
-            anchors.centerIn: parent
-            visible: actionColumn.readOnly
-            text: actionColumn.label; color: Theme.accent
-            font.family: Theme.fontBody; font.pixelSize: Theme.fSm
-        }
-    }
-
-    // 编辑态字段
+    property string editingId: ""
+    readonly property bool editingBuiltin: editingId.indexOf("builtin:") === 0
+    readonly property string editingKey: editingBuiltin ? editingId.slice(8) : "custom:" + editingId
+    property bool editingSubscription: false
     property string fName: ""
     property string fUrl: ""
     property string fKey: ""
     property bool fAnthropic: false
-
+    property bool keyDirty: false
+    property bool formDirty: false
+    property int formRevision: 0
+    function markDirty() { formDirty = true; formRevision++ }
+    property int statusRevision: 0
+    readonly property color activeProviderColor: Theme.light ? "#2563eb" : "#60a5fa"
     function loc(s) { return controller ? (controller.lang, controller.tr(s)) : s }
     function reload() {
         if (!controller) return
         customs = controller.customProviderItems()
         builtins = controller.builtinProviderItems()
+        statusRevision++
     }
     onActiveChanged: if (active) { editingId = ""; reload() }
     Component.onCompleted: if (active) reload()
@@ -61,37 +36,145 @@ Item {
         ignoreUnknownSignals: true
         function onCustomProvidersChanged() { pm.reload() }
         function onProviderChanged() { pm.reload() }
-        function onModelsChanged() { pm.reload() }
-        function onModelsRefreshingChanged() { /* 绑定即可，无需 reload */ }
+        function onModelsChanged() {
+            pm.reload()
+            if (pm.editingBuiltin) pm.loadModels(controller.providerConfiguration(pm.editingKey).models)
+        }
+        function onModelChanged() { pm.reload() }
+        function onProviderStatusChanged() { pm.reload() }
+        function onSubscriptionChanged() { pm.reload() }
+        function onLangChanged() { pm.reload() }
     }
-
+    function loadModels(models) {
+        modelModel.clear()
+        for (var i = 0; i < models.length; i++)
+            modelModel.append({mname: models[i].name, ctx: "" + models[i].context, vis: !!models[i].vision})
+    }
+    function resetFormScroll() {
+        Qt.callLater(function() { if (editScroll.contentItem) editScroll.contentItem.contentY = 0 })
+    }
     function startAdd() {
-        editingId = "new"; fName = ""; fUrl = ""; fKey = ""; fAnthropic = false
-        modelModel.clear(); modelModel.append({ mname: "", ctx: "128000", vis: false })
+        editingId = "new"; editingSubscription = false
+        fName = ""; fUrl = ""; fKey = ""; fAnthropic = false; keyDirty = false; formDirty = true
+        loadModels([{name: "", context: 128000, vision: false}])
+        resetFormScroll()
     }
     function startEdit(p) {
-        editingId = p.id; fName = p.name; fUrl = p.base_url; fKey = p.api_key; fAnthropic = p.anthropic
-        modelModel.clear()
-        for (var i = 0; i < p.models.length; i++)
-            modelModel.append({ mname: p.models[i].name, ctx: "" + p.models[i].context, vis: p.models[i].vision })
-        if (p.models.length === 0) modelModel.append({ mname: "", ctx: "128000", vis: false })
+        editingId = p.id; editingSubscription = false
+        fName = p.name; fUrl = p.base_url || ""; fKey = p.api_key || ""; fAnthropic = !!p.anthropic
+        keyDirty = false; formDirty = false; loadModels(p.models)
+        resetFormScroll()
     }
-    function submit() {
-        var models = []
-        for (var i = 0; i < modelModel.count; i++) {
-            var r = modelModel.get(i)
-            if (("" + r.mname).trim().length > 0)
-                models.push({ name: r.mname, context: parseInt(r.ctx) || 128000, vision: r.vis === true })
+    function startBuiltin(p) {
+        editingId = "builtin:" + p.key
+        var config = controller.providerConfiguration(p.key)
+        editingSubscription = config.subscription
+        fName = p.name; fKey = config.key_preview; keyDirty = false; formDirty = false
+        loadModels(config.models)
+        resetFormScroll()
+    }
+    function persistForm() {
+        if (editingBuiltin) {
+            if (keyDirty && !controller.submitApiKey(editingKey, fKey)) return false
+        } else {
+            var models = []
+            for (var i = 0; i < modelModel.count; i++) {
+                var r = modelModel.get(i)
+                if (("" + r.mname).trim()) models.push({name: r.mname, context: parseInt(r.ctx) || 128000, vision: r.vis === true})
+            }
+            var payload = {id: editingId === "new" ? "" : editingId, name: fName, base_url: fUrl,
+                           anthropic: fAnthropic, models: models}
+            if (keyDirty || editingId === "new") payload.api_key = fKey
+            var res = controller.saveCustomProvider(JSON.stringify(payload))
+            if (!res || !res.ok) {
+                controller.showToast(res && res.error ? res.error : loc("无效数据")); return false
+            }
+            if (res.id) editingId = res.id
         }
-        var payload = { id: editingId === "new" ? "" : editingId, name: fName, base_url: fUrl,
-                        api_key: fKey, anthropic: fAnthropic, models: models }
-        var res = controller ? controller.saveCustomProvider(JSON.stringify(payload)) : ({ ok: false })
-        if (res && res.ok) { editingId = ""; reload(); if (controller) controller.showToast(loc("已保存")) }
-        else if (controller) controller.showToast((res && res.error) ? res.error : loc("无效数据"))
+        keyDirty = false; formDirty = false
+        // Keep only a masked preview in the form after saving.
+        fKey = controller.providerConfiguration(editingKey).key_preview || ""
+        reload(); return true
     }
-
+    function submit() { if (persistForm()) { editingId = ""; controller.showToast(loc("已保存")) } }
+    readonly property bool formReady: canVerifyForm()
+    function canVerifyForm() {
+        var revision = formRevision + statusRevision
+        var hasModel = false
+        for (var i = 0; i < modelModel.count; i++)
+            if (String(modelModel.get(i).mname).trim()) hasModel = true
+        if (!hasModel) return false
+        if (editingBuiltin) {
+            if (!editingSubscription && keyDirty) return fKey.trim().length > 0
+            return controller && controller.providerStatus(editingKey).configured
+        }
+        return fName.trim().length > 0 && /^https?:\/\/[^/\s]+/.test(fUrl.trim())
+    }
+    function verifyForm() {
+        if (!formReady || !controller || controller.running) return
+        if (formDirty && !persistForm()) return
+        controller.verifyProvider(editingKey)
+    }
+    readonly property var configurationStatus: currentConfigurationStatus()
+    function currentConfigurationStatus() {
+        var revision = statusRevision
+        if (formDirty) return {state: "unverified", configured: false, stateLabel: loc("配置已修改，可直接验证")}
+        return controller ? controller.providerStatus(editingKey) : ({state: "missing", configured: false})
+    }
+    function statusColor(state) {
+        return state === "ok" ? Theme.switchOn : state === "missing" || state === "error" || state === "busy" ? Theme.err : Theme.warn
+    }
     ListModel { id: modelModel }
 
+    component ProviderRow: Rectangle {
+        id: entry
+        property var item: ({})
+        property bool custom: false
+        readonly property string key: custom ? "custom:" + item.id : item.key
+        HoverHandler { id: entryHover }
+        Layout.fillWidth: true; Layout.bottomMargin: Theme.sp(6)
+        implicitHeight: Theme.controlHeight + Theme.sp(16)
+        radius: Theme.radMd; color: item.active ? Theme.surface2 : Theme.surface
+        RowLayout {
+            anchors.fill: parent; anchors.margins: Theme.sp(8); spacing: Theme.sp(8)
+            Rectangle {
+                objectName: "providerDot_" + entry.key
+                width: Theme.fs(6); height: width; radius: width / 2
+                color: entry.item.active ? pm.activeProviderColor : pm.statusColor(entry.item.state || "missing")
+            }
+            Text {
+                Layout.fillWidth: true; Layout.minimumWidth: 0
+                text: entry.item.name || ""; elide: Text.ElideRight
+                color: Theme.textBright; font.family: Theme.fontBody; font.pixelSize: Theme.fSm
+            }
+            Item {
+                Layout.preferredWidth: Math.max(currentLabel.implicitWidth, useProvider.implicitWidth)
+                Layout.preferredHeight: Theme.controlHeight
+                Text {
+                    id: currentLabel
+                    objectName: "providerCurrent_" + entry.key
+                    anchors.centerIn: parent
+                    visible: !!entry.item.active; text: pm.loc("当前使用")
+                    color: Theme.textDim; font.family: Theme.fontBody; font.pixelSize: Theme.fXs
+                }
+                Pill {
+                    id: useProvider
+                    objectName: "providerUse_" + entry.key
+                    anchors.centerIn: parent
+                    visible: !entry.item.active && entryHover.hovered
+                    label: pm.loc("使用")
+                    enabled: !!entry.item.configured && controller && !controller.running
+                    opacity: enabled ? 1 : 0.4
+                    onClicked: controller.selectProviderModel(entry.key, "")
+                }
+            }
+            Pill {
+                objectName: "providerConfig_" + entry.key
+                label: pm.loc("配置")
+                onClicked: if (entry.custom) pm.startEdit(entry.item); else pm.startBuiltin(entry.item)
+            }
+        }
+    }
     // 小工具组件
     component Field: Rectangle {
         id: fieldRoot
@@ -117,6 +200,7 @@ Item {
             font.family: Theme.fontBody; font.pixelSize: Theme.fSm
             background: null
             onTextEdited: fieldRoot.textEdited()
+            onActiveFocusChanged: if (activeFocus && fieldRoot.password && text === "••••••••") selectAll()
         }
     }
     component FieldLabel: Text {
@@ -124,268 +208,177 @@ Item {
         bottomPadding: Theme.sp(6); topPadding: Theme.sp(12)
     }
     component MiniToggle: ToggleSwitch {}
-    component DotChip: Rectangle {
-        property bool on: false
-        width: Theme.fs(6); height: width; radius: width / 2
-        color: on ? Theme.ok : Theme.textMute
-    }
 
-    // ====== 列表态 ======
+
     PanelScrollView {
         id: providerScroll
-        anchors.fill: parent
-        visible: pm.editingId === ""
-        clip: true
+        objectName: "providerListScroll"
+        anchors.fill: parent; visible: pm.editingId === ""; clip: true
         contentWidth: availableWidth
         ColumnLayout {
-            width: providerScroll.availableWidth
-            spacing: 0
-
+            width: providerScroll.availableWidth; spacing: 0
             Text {
-                Layout.fillWidth: true; Layout.bottomMargin: 14
-                text: pm.loc("管理自定义模型供应商，配置后可在聊天时选择使用。")
-                color: Theme.textMute; font.family: Theme.fontBody; font.pixelSize: Theme.fSm
-                wrapMode: Text.Wrap
+                Layout.fillWidth: true; Layout.bottomMargin: Theme.sp(14)
+                text: pm.loc("进入配置页管理账号、模型和验证")
+                color: Theme.textMute; font.family: Theme.fontBody; font.pixelSize: Theme.fSm; wrapMode: Text.Wrap
             }
-
-            // 内置供应商（标题行右侧：手动刷新入口 + 更新时间）
-            RowLayout {
-                Layout.fillWidth: true; spacing: 8
-                Text { Layout.fillWidth: true; text: pm.loc("内置供应商"); color: Theme.textMute
-                       font.family: Theme.fontMono; font.pixelSize: Theme.fMicro
-                       font.letterSpacing: Theme.trackLabel; bottomPadding: 8 }
-                Pill { label: (controller && controller.modelsRefreshing) ? pm.loc("刷新中…") : pm.loc("刷新模型")
-                       enabled: !(controller && controller.modelsRefreshing)
-                       opacity: enabled ? 1.0 : 0.45
-                       onClicked: if (controller) controller.refreshModels() }
+            Text {
+                text: pm.loc("内置供应商"); color: Theme.textMute; bottomPadding: Theme.sp(8)
+                font.family: Theme.fontMono; font.pixelSize: Theme.fMicro
             }
-            Text { Layout.bottomMargin: 6
-                   text: (controller && controller.modelsUpdatedAt)
-                         ? pm.loc("模型更新于") + " " + controller.modelsUpdatedAt
-                         : pm.loc("尚未自动刷新")
-                   color: Theme.textMute; font.family: Theme.fontMono; font.pixelSize: Theme.fMicro }
             Repeater {
                 model: pm.builtins
-                delegate: Rectangle {
-                    required property var modelData
-                    Layout.fillWidth: true
-                    implicitHeight: Math.round(40 * Theme.scale)
-                    radius: Theme.radSm
-                    color: bma.containsMouse ? Theme.surface : "transparent"
-                    RowLayout {
-                        anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 8; spacing: 9
-                        DotChip { on: true }
-                        Text { Layout.fillWidth: true; Layout.minimumWidth: 0; text: modelData.name; color: Theme.text
-                               font.family: Theme.fontBody; font.pixelSize: Theme.fSm; elide: Text.ElideRight }
-                        ActionColumn {
-                            objectName: "providerSelect_" + modelData.key
-                            implicitWidth: pm.selectColumnWidth
-                            label: modelData.active ? pm.loc("当前") : pm.loc("使用")
-                            readOnly: modelData.active
-                            onClicked: if (controller) controller.selectProviderModel(modelData.key, "")
-                        }
-                        ActionColumn {
-                            objectName: "providerConfig_" + modelData.key
-                            implicitWidth: pm.configColumnWidth
-                            label: (modelData.key === "codex" || modelData.key === "claude_sub") ? pm.loc("订阅登录") : "API Key"
-                            onClicked: if (controller) controller.openProviderApiKey(modelData.key)
-                        }
-                    }
-                    MouseArea { id: bma; anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton }
-                }
+                delegate: ProviderRow { required property var modelData; item: modelData }
             }
-
-            // 自定义供应商
-            Text { text: pm.loc("自定义供应商"); color: Theme.textMute; font.family: Theme.fontMono
-                   font.pixelSize: Theme.fMicro; font.letterSpacing: Theme.trackLabel; topPadding: 18; bottomPadding: 8 }
             Text {
-                visible: pm.customs.length === 0
-                Layout.fillWidth: true; Layout.bottomMargin: 6
-                text: pm.loc("还没有自定义供应商")
-                color: Theme.textMute; font.family: Theme.fontBody; font.pixelSize: Theme.fSm
+                text: pm.loc("自定义供应商"); color: Theme.textMute; topPadding: Theme.sp(18); bottomPadding: Theme.sp(8)
+                font.family: Theme.fontMono; font.pixelSize: Theme.fMicro
             }
             Repeater {
                 model: pm.customs
-                delegate: Rectangle {
-                    required property var modelData
-                    Layout.fillWidth: true
-                    Layout.bottomMargin: 6
-                    implicitHeight: Math.round(52 * Theme.scale)
-                    radius: Theme.radSm
-                    color: modelData.active ? Theme.surface2 : Theme.surface
-                    RowLayout {
-                        anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 8; spacing: 9
-                        DotChip { on: modelData.configured }
-                        ColumnLayout {
-                            Layout.fillWidth: true; Layout.minimumWidth: 0; spacing: 1
-                            Text { text: modelData.name; color: Theme.text; font.family: Theme.fontBody
-                                   font.pixelSize: Theme.fSm; elide: Text.ElideRight; Layout.fillWidth: true }
-                            Text { text: modelData.models.length + " " + pm.loc("模型列表") + (modelData.anthropic ? " · Anthropic" : " · OpenAI")
-                                   color: Theme.textMute; font.family: Theme.fontMono; font.pixelSize: Theme.fMicro
-                                   elide: Text.ElideRight; Layout.fillWidth: true }
-                        }
-                        ActionColumn {
-                            objectName: "providerSelect_custom:" + modelData.id
-                            implicitWidth: pm.selectColumnWidth
-                            label: modelData.active ? pm.loc("当前") : pm.loc("使用")
-                            readOnly: modelData.active
-                            onClicked: if (controller) controller.selectProviderModel("custom:" + modelData.id, "")
-                        }
-                        ActionColumn {
-                            objectName: "providerConfig_custom:" + modelData.id
-                            implicitWidth: pm.configColumnWidth
-                            label: pm.loc("编辑")
-                            onClicked: pm.startEdit(modelData)
-                        }
-                    }
-                }
+                delegate: ProviderRow { required property var modelData; item: modelData; custom: true }
             }
-
-            Rectangle {
-                objectName: "addProviderButton"
-                Layout.fillWidth: true; Layout.topMargin: 6
-                implicitHeight: Math.round(38 * Theme.scale)
-                radius: Theme.radSm; color: addMa.containsMouse ? Theme.accentSoft : "transparent"
-                RowLayout {
-                    anchors.centerIn: parent; spacing: 7
-                    Text { text: "+"; color: Theme.accent; font.pixelSize: Theme.fMd }
-                    Text { text: pm.loc("添加供应商"); color: Theme.accent; font.family: Theme.fontMono
-                           font.pixelSize: Theme.fXs; font.letterSpacing: Theme.trackLabel }
-                }
-                MouseArea { id: addMa; anchors.fill: parent; hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor; onClicked: pm.startAdd() }
-            }
+            Pill { objectName: "addProviderButton"; Layout.alignment: Qt.AlignHCenter
+                label: "+ " + pm.loc("添加供应商"); onClicked: pm.startAdd() }
         }
     }
 
-    // ====== 编辑/新增态 ======
-    // 标题行与底部动作按钮固定，仅中间表单滚动：模型增多时"保存/取消"始终可见（修复 #31）。
     ColumnLayout {
-        anchors.fill: parent
-        visible: pm.editingId !== ""
-        spacing: 0
-
+        anchors.fill: parent; visible: pm.editingId !== ""; spacing: Theme.sp(8)
         RowLayout {
-            Layout.fillWidth: true; spacing: 8
-            Text { Layout.fillWidth: true
-                text: pm.editingId === "new" ? pm.loc("添加模型供应商") : pm.fName
-                color: Theme.textBright; font.family: Theme.fontDisplay; font.pixelSize: Theme.fLg; elide: Text.ElideRight }
-            Pill { label: pm.loc("取消"); onClicked: pm.editingId = "" }
+            Layout.fillWidth: true
+            Text {
+                Layout.fillWidth: true; text: pm.editingId === "new" ? pm.loc("添加模型供应商") : pm.fName
+                color: Theme.textBright; font.family: Theme.fontDisplay; font.pixelSize: Theme.fLg; elide: Text.ElideRight
+            }
+            IconButton { objectName: "backFromProviderConfig"; icon: "arrowLeft"; circular: true
+                tooltip: pm.loc("返回"); onClicked: pm.editingId = "" }
         }
-
         PanelScrollView {
             id: editScroll
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            Layout.topMargin: 8
-            clip: true
-            contentWidth: availableWidth
-
-            Item {
-                width: editScroll.availableWidth
-                implicitHeight: formCol.implicitHeight
-
-                ColumnLayout {
-                    id: formCol
-                    width: parent.width
-                    spacing: 0
-
-                    Text { Layout.fillWidth: true; Layout.topMargin: 4
-                        text: pm.loc("配置一个自定义 API 端点和它的模型。")
-                        color: Theme.textMute; font.family: Theme.fontBody; font.pixelSize: Theme.fXs; wrapMode: Text.Wrap }
-
-                    FieldLabel { text: pm.loc("名称") }
-                    Field { Layout.fillWidth: true; id: fld_name; text: pm.fName; placeholder: "Kimi / GLM / ..."; onTextEdited: pm.fName = text }
-                    FieldLabel { text: "Base URL" }
-                    Field { Layout.fillWidth: true; id: fld_url; text: pm.fUrl; placeholder: "https://api.example.com/v1"; onTextEdited: pm.fUrl = text }
-                    FieldLabel { text: "API Key" }
-                    Field { Layout.fillWidth: true; id: fld_key; text: pm.fKey; placeholder: "sk-..."; password: true; onTextEdited: pm.fKey = text }
-
-                    FieldLabel { text: pm.loc("API 格式") }
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 6
-                        Pill { label: "OpenAI"; active: !pm.fAnthropic; onClicked: pm.fAnthropic = false }
-                        Pill { label: "Anthropic"; active: pm.fAnthropic; onClicked: pm.fAnthropic = true }
-                        Item { Layout.fillWidth: true }
+            objectName: "providerConfigScroll"
+            Layout.fillWidth: true; Layout.fillHeight: true; clip: true; contentWidth: availableWidth
+            ColumnLayout {
+                width: editScroll.availableWidth; spacing: 0
+                FieldLabel { visible: !pm.editingBuiltin; text: pm.loc("名称") }
+                Field { objectName: "providerNameField"; visible: !pm.editingBuiltin; Layout.fillWidth: true; text: pm.fName
+                    onTextEdited: { pm.fName = text; pm.markDirty() } }
+                FieldLabel { visible: !pm.editingBuiltin; text: "Base URL" }
+                Field { objectName: "providerUrlField"; visible: !pm.editingBuiltin; Layout.fillWidth: true; text: pm.fUrl; placeholder: "https://api.example.com/v1"
+                    onTextEdited: { pm.fUrl = text; pm.markDirty() } }
+                FieldLabel { visible: !pm.editingSubscription; text: "API Key" }
+                Field {
+                    objectName: "providerKeyField"
+                    visible: !pm.editingSubscription; Layout.fillWidth: true
+                    text: pm.fKey; placeholder: "sk-..."; password: true
+                    onTextEdited: { pm.fKey = text; pm.keyDirty = true; pm.markDirty() }
+                }
+                Pill {
+                    visible: pm.editingSubscription; label: pm.loc("订阅登录")
+                    onClicked: controller.openProviderApiKey(pm.editingKey)
+                }
+                FieldLabel { visible: !pm.editingBuiltin; text: pm.loc("API 格式") }
+                RowLayout {
+                    visible: !pm.editingBuiltin; Layout.fillWidth: true
+                    Pill { label: "OpenAI"; active: !pm.fAnthropic
+                        onClicked: { pm.fAnthropic = false; pm.markDirty() } }
+                    Pill { label: "Anthropic"; active: pm.fAnthropic
+                        onClicked: { pm.fAnthropic = true; pm.markDirty() } }
+                }
+                RowLayout {
+                    Layout.fillWidth: true; Layout.topMargin: Theme.sp(12)
+                    Text {
+                        objectName: "configProviderStatus"
+                        Layout.fillWidth: true; wrapMode: Text.Wrap
+                        text: pm.configurationStatus.stateLabel || ""
+                        color: pm.statusColor(pm.configurationStatus.state)
+                        font.family: Theme.fontBody; font.pixelSize: Theme.fXs
                     }
+                    Pill {
+                        objectName: "verifyConfigProvider"
+                        filled: true
+                        label: pm.configurationStatus.state === "ok" ? pm.loc("已验证") : pm.loc("验证")
+                        enabled: controller && !controller.running && pm.formReady &&
+                            pm.configurationStatus.state !== "checking" && pm.configurationStatus.state !== "ok"
+                        opacity: enabled ? 1 : 0.4
+                        onClicked: pm.verifyForm()
+                    }
+                }
+                RowLayout {
+                    Layout.fillWidth: true; Layout.topMargin: Theme.sp(12)
+                    FieldLabel { Layout.fillWidth: true; text: pm.loc("模型列表") }
+                    Pill { visible: pm.editingBuiltin; label: pm.loc("刷新模型")
+                        enabled: controller && !controller.modelsRefreshing
+                        onClicked: controller.refreshModels() }
+                }
+                Text {
+                    Layout.fillWidth: true; Layout.bottomMargin: Theme.sp(10)
+                    text: pm.loc("每个供应商仅使用第一个模型验证一次，配置不变时复用结果")
+                    wrapMode: Text.Wrap; color: Theme.textMute; font.family: Theme.fontBody; font.pixelSize: Theme.fXs
+                }
+                Repeater {
+                    model: modelModel
+                    delegate: Rectangle {
+                        id: modelCard
+                        required property int index
+                        required property var model
+                        objectName: "providerModelRow_" + index
+                        Layout.fillWidth: true; Layout.bottomMargin: Theme.sp(8)
+                        implicitHeight: modelContent.implicitHeight + Theme.sp(16)
+                        radius: Theme.radMd; color: Theme.surface
+                        ColumnLayout {
+                            id: modelContent
+                            anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+                            anchors.margins: Theme.sp(8); spacing: Theme.sp(8)
+                            Text {
+                                visible: pm.editingBuiltin; Layout.fillWidth: true
+                                text: controller ? controller.modelNameLabel(model.mname) : model.mname
+                                color: Theme.text; font.family: Theme.fontBody; font.pixelSize: Theme.fSm
+                            }
+                            Field {
+                                visible: !pm.editingBuiltin; objectName: "providerModelName_" + index
+                                Layout.fillWidth: true; text: model.mname; placeholder: pm.loc("模型名")
+                                onTextEdited: { modelModel.setProperty(index, "mname", text); pm.markDirty() }
+                            }
+                            GridLayout {
+                                visible: !pm.editingBuiltin; Layout.fillWidth: true; columns: 3; columnSpacing: Theme.sp(8)
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    Text { text: pm.loc("上下文窗口"); color: Theme.textDim; font.pixelSize: Theme.fXs }
+                                    Field { Layout.fillWidth: true; text: model.ctx
+                                        onTextEdited: { modelModel.setProperty(index, "ctx", text); pm.markDirty() } }
+                                }
+                                ColumnLayout {
+                                    Text { text: pm.loc("图片"); color: Theme.textDim; font.pixelSize: Theme.fXs }
+                                    MiniToggle {
+                                        objectName: "providerVisionToggle_" + index
+                                        Accessible.name: pm.loc("支持图片输入"); Layout.preferredHeight: Theme.fieldHeight
+                                        on: model.vis === true
+                                        onToggled: { modelModel.setProperty(index, "vis", checked); pm.markDirty() }
+                                    }
+                                }
+                                IconButton { objectName: "removeProviderModel_" + index
+                                    Layout.alignment: Qt.AlignBottom; icon: "close"; tooltip: pm.loc("移除模型"); circular: true
+                                    onClicked: { if (modelModel.count > 1) modelModel.remove(index)
+                                                 else modelModel.setProperty(index, "mname", "")
+                                                 pm.markDirty() }
+                                }
+                            }
 
-                    FieldLabel { text: pm.loc("模型列表") }
-                    Repeater {
-                        model: modelModel
-                        delegate: GridLayout {
-                            required property int index
-                            required property var model
-                            objectName: "providerModelRow_" + index
-                            Layout.fillWidth: true
-                            Layout.bottomMargin: Theme.sp(12)
-                            columns: width < Theme.fs(380) ? 3 : 4
-                            columnSpacing: Theme.sp(8); rowSpacing: Theme.sp(8)
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                Layout.columnSpan: parent.columns === 3 ? 3 : 1
-                                spacing: Theme.sp(5)
-                                Text { text: pm.loc("模型名"); color: Theme.textDim; font.family: Theme.fontBody; font.pixelSize: Theme.fXs }
-                                Field {
-                                    objectName: "providerModelName_" + index
-                                    Layout.fillWidth: true
-                                    text: model.mname; placeholder: pm.loc("模型名")
-                                    onTextEdited: modelModel.setProperty(index, "mname", text)
-                                }
-                            }
-                            ColumnLayout {
-                                Layout.fillWidth: parent.columns === 3
-                                Layout.preferredWidth: Theme.fs(108)
-                                spacing: Theme.sp(5)
-                                Text { text: pm.loc("上下文窗口"); color: Theme.textDim; font.family: Theme.fontBody; font.pixelSize: Theme.fXs }
-                                Field {
-                                    Layout.fillWidth: true
-                                    text: model.ctx; placeholder: pm.loc("上下文窗口")
-                                    onTextEdited: modelModel.setProperty(index, "ctx", text)
-                                }
-                            }
-                            ColumnLayout {
-                                spacing: Theme.sp(5)
-                                Text { text: pm.loc("图片"); color: Theme.textDim; font.family: Theme.fontBody; font.pixelSize: Theme.fXs }
-                                MiniToggle {
-                                    objectName: "providerVisionToggle_" + index
-                                    Accessible.name: pm.loc("支持图片输入")
-                                    Layout.preferredHeight: Theme.fieldHeight
-                                    on: model.vis === true
-                                    onToggled: modelModel.setProperty(index, "vis", checked)
-                                }
-                            }
-                            IconButton {
-                                objectName: "removeProviderModel_" + index
-                                Layout.alignment: Qt.AlignBottom | Qt.AlignRight
-                                icon: "close"; tooltip: pm.loc("移除模型"); circular: true
-                                onClicked: if (modelModel.count > 1) modelModel.remove(index)
-                                           else modelModel.setProperty(index, "mname", "")
-                            }
                         }
                     }
-                    Rectangle {
-                        Layout.fillWidth: true
-                        implicitHeight: Math.round(32 * Theme.scale)
-                        radius: Theme.radSm; color: addmMa.containsMouse ? Theme.surface : "transparent"
-                        Text { anchors.centerIn: parent; text: "+ " + pm.loc("添加模型"); color: Theme.textDim
-                               font.family: Theme.fontMono; font.pixelSize: Theme.fXs }
-                        MouseArea { id: addmMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: modelModel.append({ mname: "", ctx: "128000", vis: false }) }
-                    }
-                    Item { Layout.preferredHeight: 12 }
                 }
+                Pill { visible: !pm.editingBuiltin; label: "+ " + pm.loc("添加模型")
+                    onClicked: { modelModel.append({mname: "", ctx: "128000", vis: false}); pm.markDirty() } }
             }
         }
-
         RowLayout {
-            Layout.fillWidth: true; Layout.topMargin: 12
-            Pill {
-                label: pm.loc("删除"); dashed: true; visible: pm.editingId !== "new"
-                onClicked: { if (controller) controller.deleteCustomProvider(pm.editingId); pm.editingId = ""; pm.reload() }
-            }
+            Layout.fillWidth: true; spacing: Theme.sp(8)
             Item { Layout.fillWidth: true }
-            Pill { label: pm.loc("取消"); onClicked: pm.editingId = "" }
-            Pill { objectName: "saveProviderButton"; label: pm.loc("保存"); accent: true; onClicked: pm.submit() }
+            Pill { objectName: "deleteProviderButton"; filled: true
+                visible: !pm.editingBuiltin && pm.editingId !== "new"; label: pm.loc("删除")
+                onClicked: { controller.deleteCustomProvider(pm.editingId); pm.editingId = ""; pm.reload() } }
+            Pill { objectName: "saveProviderButton"; label: pm.loc("保存"); filled: true; accent: true; onClicked: pm.submit() }
         }
     }
 }

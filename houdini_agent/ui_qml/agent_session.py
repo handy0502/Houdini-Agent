@@ -100,6 +100,9 @@ class AgentSession:
             tools_override, user_text,
             mode=tool_mode or {"Ask": "ask", "Plan": "plan_planning"}.get(mode, "agent"),
         )
+        if not memory:
+            from houdini_agent.utils.memory_tools import MEMORY_TOOLS
+            tools_override = [t for t in tools_override if t.get("function", {}).get("name") not in MEMORY_TOOLS]
         # 非视觉模型默认禁用视口截图检查工具（它依赖把图片回注给模型分析）
         if not supports_vision and tools_override:
             tools_override = [
@@ -181,15 +184,10 @@ class AgentSession:
                 pass
         if memory:
             try:
-                from houdini_agent.utils.memory_store import get_memory_store
-                ms = get_memory_store()
-                parts = []
-                for r in ms.get_core_memories(5):
-                    parts.append("- " + str(getattr(r, "rule_text", r)))
-                for r, _score in ms.search_episodic(query, top_k=3):
-                    parts.append("- " + str(getattr(r, "task", r)))
-                if parts:
-                    out.append({"role": "system", "content": "长期记忆参考:\n" + "\n".join(parts)})
+                from houdini_agent.utils.memory_tools import memory_context
+                context = memory_context(query)
+                if context:
+                    out.append({"role": "system", "content": context})
             except Exception:
                 pass
         return out

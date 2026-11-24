@@ -45,7 +45,7 @@ Rectangle {
         }
         Rectangle {
             Layout.fillWidth: true; implicitHeight: Theme.fs(36); radius: Theme.radSm
-            color: search.activeFocus ? Theme.surface : "transparent"
+            color: Theme.surface
             RowLayout {
                 anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 10; spacing: 10
                 AppIcon { name: "search"; color: Theme.textMute }

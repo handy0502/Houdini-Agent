@@ -77,6 +77,8 @@ _READONLY_TOOLS = frozenset({
 def _infer_modes(name: str) -> Set[str]:
     """根据工具名自动推断适用模式"""
     modes = {"agent", "plan_executing"}  # 所有工具默认可在 Agent 和 Plan 执行阶段使用
+    if name in {"search_memory", "save_memory"}:
+        return {"agent", "ask", "plan_planning", "plan_executing"}
     if name in _ASK_TOOLS:
         modes.add("ask")
     if name in _PLAN_PLANNING_TOOLS:
@@ -326,7 +328,7 @@ class ToolRegistry:
             'web_search', 'fetch_webpage', 'search_local_doc',
             'search_node_types', 'semantic_search_nodes',
             'find_nodes_by_param', 'get_houdini_node_doc',
-            'search_memory',
+            'search_memory', 'save_memory',
         },
         'layout': {
             'layout_nodes', 'create_network_box',

@@ -177,7 +177,8 @@ Popup {
                 onClicked: { if (dlg.mode === "confirm" && controller) controller.cancelDialogConfirm(dlg.confirmToken); dlg.close() }
             }
             Pill {
-                label: dlg.loc("提交")
+                objectName: "confirmApiKeyButton"
+                label: dlg.loc("确认")
                 visible: dlg.mode === "api"
                 accent: true
                 onClicked: { if (!controller || controller.submitApiKey(dlg.provider, apiField.text)) dlg.close() }

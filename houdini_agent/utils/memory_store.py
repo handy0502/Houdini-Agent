@@ -14,6 +14,7 @@ import json
 import math
 import sqlite3
 import time
+import threading
 import uuid
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
@@ -820,11 +821,14 @@ class MemoryStore:
 # ============================================================
 
 _store_instance: Optional[MemoryStore] = None
+_store_lock = threading.Lock()
 
 def get_memory_store() -> MemoryStore:
     """获取全局 MemoryStore 实例"""
     global _store_instance
-    if _store_instance is None:
-        _store_instance = MemoryStore()
-        _store_instance.seed_default_strategies()
+    with _store_lock:
+        if _store_instance is None:
+            store = MemoryStore()
+            store.seed_default_strategies()
+            _store_instance = store
     return _store_instance
