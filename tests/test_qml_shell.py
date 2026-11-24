@@ -916,10 +916,68 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
             controller._set_running(True)
             QTest.qWait(30)
             assert find('sendButton').property('busy')
-            click(find('sendButton'))
+            click(find('stopButton'))
             stop.assert_called_once()
             controller._set_running(False)
             controller._session = None
+            input_item.setProperty('text', '')
+            # During a turn both click and Enter enqueue without starting a
+            # second worker; queue actions keep the current draft intact.
+            model.clear()
+            with patch.object(controller, '_simulate'):
+                assert controller.send('Active turn')
+                input_item.setProperty('text', 'Queued by click')
+                click(find('sendButton'))
+                assert input_item.property('text') == '' and controller.queuedCount == 1
+                assert find('messageQueuePanel').isVisible()
+                input_item.setProperty('text', 'Queued by Enter')
+                input_item.forceActiveFocus()
+                QTest.keyClick(view, Qt.Key_Return)
+                QTest.qWait(60)
+                assert controller.queuedCount == 2 and input_item.property('text') == ''
+                entries = controller.queuedMessages
+                click(find('removeQueuedMessage_' + entries[0]['id']))
+                assert controller.queuedCount == 1
+                input_item.setProperty('text', 'Current draft')
+                click(find('editQueuedMessage_' + entries[1]['id']))
+                assert controller.queuedCount == 0
+                assert input_item.property('text') == 'Queued by Enter\n\nCurrent draft'
+                # Independent stop stays accessible with a nonempty draft,
+                # including a narrow window, large type and visible queue.
+                for width, scale in [(420, 1.6), (710, 1.3), (1180, 1.0)]:
+                    controller.setFontScale(scale)
+                    view.resize(width, 820)
+                    root.setProperty('sidebarExpanded', width < 1180)
+                    input_item.setProperty('text', 'Another queued message')
+                    click(find('sendButton'))
+                    input_item.setProperty('text', 'Keep editing')
+                    QTest.qWait(60)
+                    for name in ['stopButton', 'sendButton', 'modelSelector', 'modeSelector']:
+                        control = find(name)
+                        point = control.mapToScene(QPointF(0, 0))
+                        assert 0 <= point.x() and point.x() + control.width() <= view.width() + 1, (width, scale, name, point.x(), control.width())
+                        assert 0 <= point.y() and point.y() + control.height() <= view.height() + 1
+                view.grab().save(str(state / 'message-queue.png'))
+                click(find('stopButton'))
+                controller._ui_done('')
+                QTest.qWait(60)
+                assert controller.queuePaused and not controller.running
+                click(find('resumeMessageQueue'))
+                QTest.qWait(60)
+                assert controller.running and controller.queuedCount == 2
+                # Each successful completion starts exactly the next entry.
+                controller._ui_done('')
+                QTest.qWait(60)
+                assert controller.running and controller.queuedCount == 1
+                controller._ui_done('')
+                QTest.qWait(60)
+                assert controller.running and controller.queuedCount == 0
+                controller._ui_done('')
+                QTest.qWait(60)
+                assert not controller.running and input_item.property('text') == 'Keep editing'
+            controller.setFontScale(1.0)
+            view.resize(440, 820)
+            root.setProperty('sidebarExpanded', False)
             input_item.setProperty('text', '')
             # A failed real send exposes a copy action, local send time and a
             # draft recovery action; recovery preserves both draft and images.

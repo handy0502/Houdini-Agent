@@ -9,7 +9,7 @@ Rectangle {
     color: "transparent"
     implicitHeight: col.implicitHeight + Theme.sp(16)
     property var modes: ["Agent", "Ask", "Plan"]
-    property int modeIndex: 0
+    property int modeIndex: controller ? Math.max(0, modes.indexOf(controller.mode)) : 0
     readonly property real toolbarMinimumWidth: leadingControls.implicitWidth
         + Theme.controlHeight * 2 + 40 + Theme.sp(3) * 4 + 5
     readonly property bool compactToolbar: inputLayout.width < toolbarMinimumWidth
@@ -18,8 +18,9 @@ Rectangle {
     // Keep some conversation visible whenever the available height permits it.
     property real availableHeightBudget: parent ? parent.height : Theme.fs(560)
     readonly property real fixedHeight: pendingStrip.implicitHeight + runStatus.implicitHeight
+        + queuedMessages.implicitHeight
         + toolbar.implicitHeight + inputLayout.spacing + toolbar.Layout.topMargin + Theme.sp(16) * 2
-        + col.spacing * ((pendingStrip.implicitHeight > 0 ? 1 : 0) + (runStatus.active ? 1 : 0) + (imgUris.length > 0 ? 1 : 0))
+        + col.spacing * ((pendingStrip.implicitHeight > 0 ? 1 : 0) + (runStatus.active ? 1 : 0) + (imgUris.length > 0 ? 1 : 0) + (queuedMessages.visible ? 1 : 0))
     readonly property real heightBudget: Math.max(0, Math.min(availableHeightBudget,
         Math.max(fixedHeight + Theme.fs(32) + (imgUris.length > 0 ? Theme.fs(58) : 0),
                  availableHeightBudget - Math.min(Theme.fs(120), availableHeightBudget * 0.25))))
@@ -44,6 +45,7 @@ Rectangle {
         target: controller
         ignoreUnknownSignals: true
         function onImagesChanged() { composer.imgUris = controller.pendingImageUris() }
+        function onModeChanged() { composer.modeIndex = composer.modes.indexOf(controller.mode) }
         function onRestoreFailedDraft(t) {
             var current = inputArea.text
             if (current !== t && current.indexOf(t + "\n\n") !== 0)
@@ -82,6 +84,11 @@ Rectangle {
             }
         }
         StatusBar { id: runStatus; Layout.fillWidth: true }
+        QueuedMessages {
+            id: queuedMessages
+            Layout.fillWidth: true
+            heightBudget: Math.min(Theme.fs(130), composer.availableHeightBudget * 0.22)
+        }
         PanelScrollView {
             id: attachmentScroll
             objectName: "attachmentViewport"
@@ -170,7 +177,7 @@ Rectangle {
                             }
                             if (e.modifiers & Qt.ShiftModifier) { e.accepted = false; return }
                             e.accepted = true
-                            if (!controller || !controller.running) composer.submit()
+                            composer.submit()
                         }
                         Keys.onPressed: function(e) {
                             if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_V) {
@@ -214,6 +221,13 @@ Rectangle {
                                 composer.openMenu(modeButton, modeMenu)
                             }
                         }
+                        IconButton {
+                            objectName: "stopButton"
+                            circular: true
+                            visible: controller && controller.running && inputArea.text.trim().length > 0
+                            icon: "stop"; tooltip: composer.label("停止并暂停队列", "Stop and pause queue")
+                            onClicked: if (controller) controller.stop()
+                        }
                     }
                     GridLayout {
                         id: trailingControls
@@ -252,6 +266,7 @@ Rectangle {
                             objectName: "sendButton"
                             property bool busy: controller ? controller.running : false
                             property bool ready: inputArea.text.trim().length > 0
+                            readonly property bool stopAction: busy && !ready
                             Layout.preferredWidth: Theme.controlHeight; Layout.preferredHeight: Theme.controlHeight
                             Layout.alignment: Qt.AlignVCenter
                             Layout.row: trailingControls.stacked ? 1 : 0
@@ -261,13 +276,14 @@ Rectangle {
                             color: Theme.textBright
                             opacity: busy || ready ? 1 : 0.45
                             Accessible.role: Accessible.Button
-                            Accessible.name: busy ? composer.label("停止", "Stop") : composer.label("发送", "Send")
-                            AppIcon { anchors.centerIn: parent; visible: !sendButton.busy; name: "arrowUp"; color: Theme.bg; width: Theme.fs(19); height: width }
-                            Rectangle { anchors.centerIn: parent; visible: sendButton.busy; width: Theme.fs(11); height: width; radius: 2; color: Theme.bg }
+                            Accessible.name: stopAction ? composer.label("停止", "Stop")
+                                : busy ? composer.label("加入队列", "Queue message") : composer.label("发送", "Send")
+                            AppIcon { anchors.centerIn: parent; visible: !sendButton.stopAction; name: "arrowUp"; color: Theme.bg; width: Theme.fs(19); height: width }
+                            Rectangle { anchors.centerIn: parent; visible: sendButton.stopAction; width: Theme.fs(11); height: width; radius: 2; color: Theme.bg }
                             MouseArea {
                                 anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                 onClicked: {
-                                    if (controller && controller.running) controller.stop()
+                                    if (sendButton.stopAction && controller) controller.stop()
                                     else composer.submit()
                                 }
                             }

@@ -147,6 +147,21 @@ UI_EN = {
     "登录 Meshy 同步你的资产": "Sign in to Meshy to sync your assets",
     "模型": "Model", "Nano Banana（默认 · 快）": "Nano Banana (default · fast)",
     "Nano Banana Pro（高质量）": "Nano Banana Pro (high quality)",
+    # 生图模型设置（Meshy / Codex 订阅）
+    "图片生成": "Image generation",
+    "默认生图模型": "Default image model",
+    "选择文生图、图生图与概念图默认使用的生图后端。登录 ChatGPT 订阅后可直接使用 Codex 生图模型，无需 Meshy API Key。":
+        "Choose the default backend for text-to-image, image-to-image, and concept art. "
+        "Sign in to your ChatGPT plan to use Codex image models without a Meshy API key.",
+    "同步模型": "Sync models",
+    "同步中…": "Syncing…",
+    "自动同步自本机 ChatGPT 订阅（Codex）": "Auto-synced from your local ChatGPT plan (Codex)",
+    "登录 ChatGPT 订阅后，即可自动同步并使用 Codex 生图模型（如 gpt-image-*）。":
+        "Sign in to your ChatGPT plan to automatically sync and use Codex image models (e.g. gpt-image-*).",
+    "登录 ChatGPT 订阅": "Sign in to ChatGPT plan",
+    "Codex 生图模型已更新": "Codex image models updated",
+    "同步 Codex 生图模型失败：": "Failed to sync Codex image models: ",
+    "请先登录 ChatGPT 订阅后再选择 Codex 生图模型": "Sign in to your ChatGPT plan before choosing a Codex image model",
     # 规则编辑器
     "新建": "New", "未命名": "Untitled", "打开规则目录": "Open rules folder",
     "还没有规则": "No rules yet",
@@ -572,6 +587,8 @@ class Controller(QObject):
     toast = Signal(str)                   # transient message
     prefillComposer = Signal(str)         # text -> 预填输入框并聚焦（库里"+用 Meshy 生成"）
     restoreFailedDraft = Signal(str)
+    messageQueueChanged = Signal()
+    modeChanged = Signal()
     requestOpenHoudini = Signal()
     requestHoudiniAction = Signal(str)
     openHoudiniMenu = Signal()
@@ -594,6 +611,9 @@ class Controller(QObject):
     openSettingsDialog = Signal()         # request the unified settings window
     modelsChanged = Signal()              # 模型目录已更新（MODEL_MAP 被后台刷新改写）
     modelsRefreshingChanged = Signal()    # 刷新开始/结束
+    imageModelChanged = Signal()          # 默认生图模型或 Codex 生图模型目录变化
+    codexImageRefreshingChanged = Signal()
+    _sigCodexImageRefresh = Signal(str)   # worker -> main: Codex 生图模型同步结果 JSON
 
     # worker -> main thread (queued)
     _sigThink = Signal(str)
@@ -645,6 +665,8 @@ class Controller(QObject):
         self._accent_key = "neutral"      # warm | steel | celadon | clay | neutral
         self._font_family_key = "modern"  # editorial | modern | mono
         self._density_key = "normal"      # compact | normal | roomy
+        self._default_image_model = ""    # ""=自动（未配 Meshy Key 且已登录 Codex 时自动走 Codex，否则 nano-banana）
+        self._codex_image_refreshing = False
         self._my_templates = []           # 用户自存模板（templates.json）
         self._scene_path = "/obj"
         self._scene_sel = "no selection"
@@ -803,6 +825,10 @@ class Controller(QObject):
         self._sigUpdateDialog.connect(self._show_update_dialog)
         self._sigSub.connect(self._on_sub_event)
         self._sigModels.connect(self._on_models_refreshed)
+        self._sigCodexImageRefresh.connect(self._on_codex_image_refreshed)
+        self.subscriptionChanged.connect(self.imageModelChanged)
+        self.langChanged.connect(self.imageModelChanged)
+        self.meshyAccountChanged.connect(self.imageModelChanged)
         self.providerChanged.connect(self.effortChanged)
         self.modelChanged.connect(self.effortChanged)
         self.langChanged.connect(self.effortChanged)
@@ -980,6 +1006,10 @@ class Controller(QObject):
             d = str(s.value("density_key", "normal") or "normal")
             if d in ("compact", "normal", "roomy"):
                 self._density_key = d
+            img_m = str(s.value("default_image_model", "") or "").strip()
+            if img_m and (img_m in ("nano-banana", "nano-banana-2", "nano-banana-pro", "gpt-image-2")
+                          or (img_m.startswith("codex:") and len(img_m) > 6)):
+                self._default_image_model = img_m
         except Exception:
             pass
 
@@ -1118,6 +1148,98 @@ class Controller(QObject):
     def _get_running(self): return self._running
     running = Property(bool, _get_running, notify=runningChanged)
 
+    def _queue_session(self):
+        sessions = getattr(self, "_sessions", [])
+        active = getattr(self, "_active", -1)
+        return sessions[active] if 0 <= active < len(sessions) else {}
+
+    def _get_queued_messages(self):
+        return [{"id": item["id"], "text": item["text"], "images": len(item.get("images", []))}
+                for item in self._queue_session().get("outbox", [])]
+
+    queuedMessages = Property("QVariantList", _get_queued_messages, notify=messageQueueChanged)
+
+    def _get_queued_count(self):
+        return len(self._queue_session().get("outbox", []))
+
+    queuedCount = Property(int, _get_queued_count, notify=messageQueueChanged)
+
+    def _get_queue_paused(self):
+        return bool(self._queue_session().get("outbox_paused", False))
+
+    queuePaused = Property(bool, _get_queue_paused, notify=messageQueueChanged)
+
+    def _get_mode(self): return self._mode
+    mode = Property(str, _get_mode, notify=modeChanged)
+
+    def _queue_changed(self):
+        self.messageQueueChanged.emit()
+        self._save_all()
+
+    def _pause_message_queue(self):
+        self._queue_session()["outbox_paused"] = True
+        self._queue_changed()
+
+    @Slot(str)
+    def removeQueuedMessage(self, message_id):
+        session = self._queue_session()
+        session["outbox"] = [item for item in session.get("outbox", []) if item["id"] != message_id]
+        self._queue_changed()
+
+    @Slot(str)
+    def editQueuedMessage(self, message_id):
+        item = next((item for item in self._queue_session().get("outbox", [])
+                     if item["id"] == message_id), None)
+        if item is None:
+            return
+        images, missing = self._decode_message_images(item.get("images", []))
+        for image in images:
+            if image not in self._pending_images:
+                self._pending_images.append(image)
+        self.removeQueuedMessage(message_id)
+        self.imagesChanged.emit()
+        self.restoreFailedDraft.emit(item["text"])
+        if missing:
+            self.toast.emit("部分附件已丢失，请重新添加")
+
+    @Slot()
+    def resumeMessageQueue(self):
+        self._queue_session()["outbox_paused"] = False
+        self._queue_changed()
+        self._schedule_message_queue()
+
+    def _schedule_message_queue(self):
+        sid = self._queue_session().get("id")
+        if sid and self._get_queued_count() and not self._get_queue_paused():
+            QTimer.singleShot(0, lambda: self._dispatch_queued_message(sid))
+
+    def _dispatch_queued_message(self, session_id):
+        session = self._queue_session()
+        if (self._running or session.get("id") != session_id or self._get_queue_paused()
+                or not session.get("outbox") or self._awaiting_current_plan()):
+            return
+        item = session["outbox"][0]
+        provider, model = item["provider"], item["model"]
+        if model not in self._provider_model_names(provider):
+            self._pause_message_queue()
+            self.toast.emit("排队消息的模型已不可用，请退回输入框后重新发送")
+            return
+        images, missing = self._decode_message_images(item.get("images", []))
+        if missing:
+            self._pause_message_queue()
+            self.toast.emit("排队消息的附件已丢失，请退回输入框重新添加")
+            return
+        self.setProvider(provider)
+        self.setModel(model)
+        self.setMode(item["mode"])
+        if item.get("effort"):
+            self.setReasoningEffort(item["effort"])
+        if self._send_now(item["text"], images):
+            session["outbox"] = session["outbox"][1:]
+            self._queue_changed()
+        else:
+            self._pause_message_queue()
+
     def _get_confirm(self): return self._confirm_mode
     confirmMode = Property(bool, _get_confirm, notify=confirmModeChanged)
 
@@ -1156,6 +1278,55 @@ class Controller(QObject):
 
     def _get_density_key(self): return self._density_key
     densityKey = Property(str, _get_density_key, notify=appearanceChanged)
+
+    # ---- 生图默认模型（Meshy / ChatGPT Codex 订阅） ----
+    _MESHY_IMAGE_CHOICES = (
+        ("nano-banana", "Nano Banana（默认 · 快）"),
+        ("nano-banana-2", "Nano Banana 2"),
+        ("nano-banana-pro", "Nano Banana Pro（高质量）"),
+        ("gpt-image-2", "GPT Image 2"),
+    )
+
+    def _codex_logged_in(self):
+        return self._sub_logged_in("codex")
+
+    def _codex_image_models(self):
+        try:
+            from houdini_agent.subscription import manager
+            return list(manager.cached_image_models("codex"))
+        except Exception:
+            return []
+
+    def _effective_default_image_model(self):
+        """当前生效的默认生图模型。
+        - 用户显式选过则严格沿用；
+        - 未显式选择时：若未配置 Meshy Key 且已登录 Codex，自动默认走 Codex 首选生图模型；
+          否则沿用 Meshy nano-banana。"""
+        if self._default_image_model:
+            return self._default_image_model
+        if self._codex_logged_in():
+            has_meshy = False
+            try:
+                has_meshy = bool(_meshy and _meshy.has_api_key())
+            except Exception:
+                pass
+            if not has_meshy:
+                cmodels = self._codex_image_models()
+                if cmodels:
+                    return "codex:" + cmodels[0]
+        return "nano-banana"
+
+    def _get_default_image_model(self):
+        return self._effective_default_image_model()
+    defaultImageModel = Property(str, _get_default_image_model, notify=imageModelChanged)
+
+    def _get_codex_logged_in(self):
+        return self._codex_logged_in()
+    codexLoggedIn = Property(bool, _get_codex_logged_in, notify=imageModelChanged)
+
+    def _get_codex_image_refreshing(self):
+        return self._codex_image_refreshing
+    codexImageRefreshing = Property(bool, _get_codex_image_refreshing, notify=codexImageRefreshingChanged)
 
     def _get_lang(self): return self._lang
     lang = Property(str, _get_lang, notify=langChanged)
@@ -1234,10 +1405,23 @@ class Controller(QObject):
 
         def work():
             result = {}
+            codex_synced = False
             try:
                 result = catalog.refresh_all(timeout=10)
             except Exception:
                 result = {}
+            # 已登录 ChatGPT 订阅时同步拉取 Codex 对话与生图模型（自动感知新版 gpt-image-*）
+            try:
+                from houdini_agent.subscription import manager
+                if manager.logged_in("codex") and manager.installed():
+                    if (not quiet) or manager.healthy() or manager.image_models_stale():
+                        manager.ensure_running(timeout=12)
+                        manager.refresh_models("codex")
+                        codex_synced = True
+            except Exception:
+                pass
+            if codex_synced:
+                result["_codex_synced"] = True
             try:
                 self._sigModels.emit(json.dumps(result, ensure_ascii=False))
             except Exception:
@@ -1253,7 +1437,8 @@ class Controller(QObject):
             result = {}
         if not isinstance(result, dict):
             result = {}
-        ok_any = False
+        codex_synced = bool(result.pop("_codex_synced", False))
+        ok_any = codex_synced
         try:
             for p, ids in result.items():
                 if not ids:
@@ -1279,6 +1464,9 @@ class Controller(QObject):
             self._models_refreshing = False
             self.modelsRefreshingChanged.emit()
             self.modelsChanged.emit()
+            if codex_synced:
+                self.imageModelChanged.emit()
+                self.providerChanged.emit()
         if self._models_refresh_quiet:
             return
         if ok_any:
@@ -1288,7 +1476,12 @@ class Controller(QObject):
 
     def _auto_refresh_models_if_stale(self):
         try:
-            if any(catalog.is_stale(p) for p in catalog.PROVIDER_SOURCES):
+            need = any(catalog.is_stale(p) for p in catalog.PROVIDER_SOURCES)
+            if not need:
+                from houdini_agent.subscription import manager
+                if manager.logged_in("codex") and manager.installed() and manager.image_models_stale():
+                    need = True
+            if need:
                 self._start_models_refresh(quiet=True)
         except Exception:
             pass
@@ -1501,6 +1694,7 @@ class Controller(QObject):
             self.toast.emit("当前正在运行，模式切换将在本轮结束后再操作")
             return False
         self._mode = m
+        self.modeChanged.emit()
         return True
 
     @Slot(float)
@@ -1681,6 +1875,7 @@ class Controller(QObject):
         s["history"] = copy.deepcopy(self._session.history) if self._session else []
         s["provider"] = self._provider
         s["model"] = self._model_name
+        s["plan_phase"] = self._plan_phase
         s["updated"] = time.time()
 
     @staticmethod
@@ -1759,6 +1954,10 @@ class Controller(QObject):
             return
         used = set()
         for sess in self._sessions:
+            for item in sess.get("outbox", []):
+                for src in item.get("images", []):
+                    if isinstance(src, str) and src.startswith("file:"):
+                        used.add(src.rsplit("/", 1)[-1])
             for it in sess.get("rows", []) or []:
                 pay = it.get("payload") if isinstance(it, dict) else None
                 if not isinstance(pay, dict):
@@ -1804,6 +2003,10 @@ class Controller(QObject):
         # 切换/新建会话时清掉上一会话残留的附带图片，避免它泄漏到新会话的图生图里。
         self._last_attached_images = []
         s = self._sessions[self._active]
+        # Restoring/switching chats never starts unattended queued work.
+        if s.get("outbox"):
+            s["outbox_paused"] = True
+        self.messageQueueChanged.emit()
         rows = copy.deepcopy(s.get("rows", []))
         self._sanitize_rows(rows)
         for it in rows:
@@ -1831,10 +2034,28 @@ class Controller(QObject):
             self._session.history = copy.deepcopy(s.get("history", []))
         self._bind_usage(s)
         self._reset_run_state()
+        self._restore_plan_state(s)
+        self._refresh_tokens()
+
+    def _restore_plan_state(self, session):
+        """Bind plan pointers and confirmation gating to the loaded chat only."""
+        self._plan_phase = "idle"
         self._plan_row = None
         self._plan_payload = None
         self._plan_idmap = {}
-        self._refresh_tokens()
+        self._pending_plan_confirm = False
+        if self._ensure_plan_state() and session.get("plan_phase") == "awaiting":
+            self._plan_phase = "awaiting"
+
+    def _awaiting_current_plan(self):
+        if self._plan_phase != "awaiting":
+            return False
+        if self._ensure_plan_state():
+            return True
+        # An old/corrupt phase cannot block a chat with no plan to confirm.
+        self._plan_phase = "idle"
+        self._pending_plan_confirm = False
+        return False
 
     @staticmethod
     def _new_token_stats():
@@ -1945,7 +2166,8 @@ class Controller(QObject):
         self._sessions[self._active]["history"] = []
         self._bind_usage(self._sessions[self._active], reset=True)
         self._reset_run_state()
-        self._plan_row = None
+        self._sessions[self._active]["plan_phase"] = "idle"
+        self._restore_plan_state(self._sessions[self._active])
         self._refresh_tokens()
         self._save_all()
         self.toast.emit(self.tr("清空对话"))
@@ -2969,10 +3191,22 @@ class Controller(QObject):
                         and item.get("payload", {}).get("failed")), None)
         if payload is None:
             return False
+        images, missing = self._decode_message_images(payload.get("images", []))
+        for image in images:
+            if image not in self._pending_images:
+                self._pending_images.append(image)
+        self.imagesChanged.emit()
+        self.restoreFailedDraft.emit(payload.get("text", ""))
+        if missing:
+            self.toast.emit("原消息已返回输入框，部分附件已丢失，请重新添加")
+        return True
+
+    def _decode_message_images(self, sources):
         from urllib.parse import urlsplit
         from urllib.request import url2pathname
         missing = False
-        for src in payload.get("images", []) or []:
+        images = []
+        for src in sources or []:
             try:
                 if src.startswith("data:image/"):
                     header, b64 = src.split(",", 1)
@@ -2992,15 +3226,11 @@ class Controller(QObject):
                         raise ValueError("unsupported attachment")
                     b64 = base64.b64encode(path.read_bytes()).decode("ascii")
                 image = (b64, mt)
-                if image not in self._pending_images:
-                    self._pending_images.append(image)
+                if image not in images:
+                    images.append(image)
             except (ValueError, OSError, TypeError, AttributeError):
                 missing = True
-        self.imagesChanged.emit()
-        self.restoreFailedDraft.emit(payload.get("text", ""))
-        if missing:
-            self.toast.emit("原消息已返回输入框，部分附件已丢失，请重新添加")
-        return True
+        return images, missing
 
     @Slot(int)
     def removeImage(self, idx):
@@ -3338,18 +3568,123 @@ class Controller(QObject):
         sep = "&" if "?" in base else "?"
         self._open_browser(base + sep + _MESHY_UTM)
 
+    @Slot(str, result=str)
+    def imageModelDisplayName(self, spec=""):
+        """生图模型短显示名（画廊按钮 / 提示用）。"""
+        s = str(spec or "").strip() or self._effective_default_image_model()
+        if s.startswith("codex:"):
+            return "Codex · " + s[6:]
+        if s.startswith("meshy:"):
+            return s[6:]
+        return s
+
+    @Slot(result="QVariantList")
+    def meshyImageModelOptions(self):
+        """设置页：Meshy 生图模型选项。"""
+        return [{"key": val, "label": self.tr(lbl)} for val, lbl in self._MESHY_IMAGE_CHOICES]
+
+    @Slot(result="QVariantList")
+    def codexImageModelOptions(self):
+        """设置页：ChatGPT 订阅（Codex）生图模型选项（自动随 CPA /v1/models 同步）。"""
+        models = self._codex_image_models()
+        cur = self._effective_default_image_model()
+        if cur.startswith("codex:"):
+            cm = cur[6:]
+            if cm and cm not in models:
+                models.append(cm)
+        return [{"key": "codex:" + m, "label": m} for m in models]
+
+    @Slot(str)
+    def setDefaultImageModel(self, val):
+        """设置默认生图模型（持久化到 QSettings）。支持 Meshy 模型及 codex:<model>。"""
+        v = str(val or "").strip()
+        if v.startswith("meshy:"):
+            v = v[6:].strip()
+        meshy_keys = {k for k, _ in self._MESHY_IMAGE_CHOICES}
+        if v.startswith("codex:"):
+            if len(v) <= 6:
+                return
+            if not self._codex_logged_in():
+                self.toast.emit(self.tr("请先登录 ChatGPT 订阅后再选择 Codex 生图模型"))
+                return
+        elif v not in meshy_keys:
+            return
+        if v != self._default_image_model:
+            self._default_image_model = v
+            self._set_pref("default_image_model", v)
+            self.imageModelChanged.emit()
+
+    @Slot()
+    def openCodexSubscription(self):
+        """从设置页直接打开 ChatGPT 订阅（Codex）登录弹窗。"""
+        self._sub_dialog_provider = "codex"
+        self.openSubscriptionDialog.emit()
+
+    @Slot()
+    def refreshCodexImageModels(self):
+        """手动同步本机 CPA /v1/models 里的 Codex 生图模型列表（后台线程）。"""
+        if self._codex_image_refreshing:
+            return
+        if not self._codex_logged_in():
+            self.toast.emit(self.tr("请先登录 ChatGPT 订阅"))
+            return
+        self._codex_image_refreshing = True
+        self.codexImageRefreshingChanged.emit()
+
+        def work():
+            try:
+                from houdini_agent.subscription import manager
+                manager.ensure_running(timeout=15)
+                models = manager.refresh_image_models("codex")
+                payload = {"ok": True, "models": models}
+            except Exception as e:
+                payload = {"ok": False, "error": str(e)}
+            try:
+                self._sigCodexImageRefresh.emit(json.dumps(payload, ensure_ascii=False))
+            except Exception:
+                pass
+
+        threading.Thread(target=work, daemon=True).start()
+
+    @Slot(str)
+    def _on_codex_image_refreshed(self, js):
+        try:
+            d = json.loads(js) if js else {}
+        except Exception:
+            d = {}
+        self._codex_image_refreshing = False
+        self.codexImageRefreshingChanged.emit()
+        self.imageModelChanged.emit()
+        self.subscriptionChanged.emit()
+        self.providerChanged.emit()
+        if d.get("ok"):
+            models = d.get("models") or []
+            suffix = (" (%s)" % ", ".join(models[:4])) if models else ""
+            self.toast.emit(self.tr("Codex 生图模型已更新") + suffix)
+        else:
+            self.toast.emit(self.tr("同步 Codex 生图模型失败：") + str(d.get("error") or ""))
+
     @Slot(str, result="QVariantList")
     def imageModelItems(self, current=""):
-        """生图模型下拉项（画廊里"弹窗选模型"用）。current=当前模型，打勾。"""
-        cur = str(current or "")
-        models = [
-            ("nano-banana", self.tr("Nano Banana（默认 · 快）")),
-            ("nano-banana-2", "Nano Banana 2"),
-            ("nano-banana-pro", self.tr("Nano Banana Pro（高质量）")),
-            ("gpt-image-2", "GPT Image 2"),
-        ]
-        return [{"label": lbl, "val": val, "checked": (val == cur)}
-                for val, lbl in models]
+        """生图模型下拉项（画廊里"弹窗选模型"用）。已登录 Codex 时同时列出 Codex 与 Meshy 模型。"""
+        cur = str(current or "").strip() or self._effective_default_image_model()
+        meshy_models = [(val, self.tr(lbl)) for val, lbl in self._MESHY_IMAGE_CHOICES]
+        show_codex = self._codex_logged_in() or cur.startswith("codex:")
+        if not show_codex:
+            return [{"label": lbl, "val": val, "checked": (val == cur)}
+                    for val, lbl in meshy_models]
+        cmodels = self._codex_image_models()
+        if cur.startswith("codex:"):
+            cm = cur[6:]
+            if cm and cm not in cmodels:
+                cmodels.append(cm)
+        items = [{"label": "Codex · " + m, "val": "codex:" + m, "checked": ("codex:" + m == cur)}
+                 for m in cmodels]
+        if items:
+            items.append({"sep": True})
+        items.extend({"label": "Meshy · " + lbl, "val": val, "checked": (val == cur)}
+                     for val, lbl in meshy_models)
+        return items
 
     @Slot(str)
     def composePrefill(self, text):
@@ -3427,6 +3762,9 @@ class Controller(QObject):
                 data = {"id": s["id"], "title": s["title"], "rows": s["rows"], "history": s["history"],
                         "provider": s.get("provider", self._provider),
                         "model": s.get("model", self._model_name),
+                        "outbox": s.get("outbox", []),
+                        "outbox_paused": s.get("outbox_paused", False),
+                        "plan_phase": s.get("plan_phase", "idle"),
                         "usage": s.get("usage") or {}}
                 (self._cache_dir / ("session_%s.json" % s["id"])).write_text(
                     json.dumps(data, ensure_ascii=False, default=str), encoding="utf-8")
@@ -3439,7 +3777,9 @@ class Controller(QObject):
 
     def _session_sig(self, s):
         return (s.get("rows"), s.get("history"), s.get("title"),
-                s.get("provider", self._provider), s.get("model", self._model_name))
+                s.get("provider", self._provider), s.get("model", self._model_name),
+                tuple(item["id"] for item in s.get("outbox", [])), s.get("outbox_paused", False),
+                s.get("plan_phase", "idle"))
 
     @Slot()
     def restore(self):
@@ -3460,6 +3800,8 @@ class Controller(QObject):
                                    "rows": d.get("rows", []), "history": d.get("history", []),
                                    "provider": d.get("provider", entry.get("provider", self._provider)),
                                    "model": d.get("model", entry.get("model", self._model_name)),
+                                   "outbox": d.get("outbox", []), "outbox_paused": True,
+                                   "plan_phase": d.get("plan_phase", "idle"),
                                    "usage": d.get("usage") if isinstance(d.get("usage"), dict) else {}})
             if loaded:
                 self._sessions = loaded
@@ -3514,6 +3856,7 @@ class Controller(QObject):
 
     @Slot()
     def stop(self):
+        self._pause_message_queue()
         if self._session:
             self._session.stop()
         self.toast.emit("正在请求停止…当前工具完成/超时后会停下")
@@ -3521,10 +3864,30 @@ class Controller(QObject):
     @Slot(str, result=bool)
     def send(self, text):
         text = (text or "").strip()
-        if not text or self._running:
-            if self._running:
-                self.toast.emit("当前正在运行，先停止或等待完成后再发送")
+        if not text:
             return False
+        if self._running or self._get_queued_count() or self._awaiting_current_plan():
+            session = self._queue_session()
+            if not session.get("id"):
+                return False
+            item = {"id": uuid.uuid4().hex, "text": text, "provider": self._provider,
+                    "model": self._model_name, "mode": self._mode,
+                    "effort": self._current_effort(),
+                    "images": [self._externalize_image(src) for src in self.pendingImageUris()]}
+            session["outbox"] = session.get("outbox", []) + [item]
+            self._pending_images = []
+            self.imagesChanged.emit()
+            self._queue_changed()
+            self._schedule_message_queue()
+            return True
+        if not self._send_now(text, list(self._pending_images)):
+            return False
+        self._queue_session()["outbox_paused"] = False
+        self._pending_images = []
+        self.imagesChanged.emit()
+        return True
+
+    def _send_now(self, text, attached_images):
         if self._sub_kind() and self._session and not self._sub_logged_in():
             self.toast.emit(self.tr("请先登录 %s" % PROVIDER_LABELS.get(self._provider, "")))
             self._sub_dialog_provider = self._provider
@@ -3538,23 +3901,20 @@ class Controller(QObject):
         # 记下最近一次附带的图片(data URI)，供 meshy_image_to_image 做图生图时引用。
         # 只在【本轮确实有附图】时更新——这样"先传图、下一轮再说改图"也能拿到图，
         # 不会因为后续纯文字轮把它清空（之前的 bug 就是这样丢图的）。
-        if self._pending_images:
+        if attached_images:
             self._last_attached_images = [
-                "data:%s;base64,%s" % (mt, b64) for (b64, mt) in self._pending_images
+                "data:%s;base64,%s" % (mt, b64) for (b64, mt) in attached_images
             ]
-        images = self._pending_images if supports_vision else []
-        if self._pending_images and not supports_vision:
+        images = attached_images if supports_vision else []
+        if attached_images and not supports_vision:
             self.toast.emit("当前模型不支持图片输入，本次只发送文本（但图片仍可用于 Meshy 图生图）")
         payload = {"text": text, "id": uuid.uuid4().hex, "sent_at": time.time()}
         # 在用户气泡里显示附带的缩略图（无论模型是否支持视觉，用户都该看到自己上传了什么）
-        if self._pending_images:
+        if attached_images:
             payload["images"] = [self._externalize_image("data:%s;base64,%s" % (mt, b64))
-                                 for (b64, mt) in self._pending_images]
+                                 for (b64, mt) in attached_images]
         self._model.append({"type": "user", "payload": payload})
         self._log_chat("USER", text)
-        self._pending_images = []
-        if images or not supports_vision:
-            self.imagesChanged.emit()
         if self._session and self._mode == "Plan":
             self._plan_phase = "planning"
             self._start_run(text, tools=self._planning_tools(), max_iter=20, images=images)
@@ -4178,7 +4538,8 @@ class Controller(QObject):
         else:
             return {"success": False, "error": "缺少 prompt 或 prompts"}
         card_prompt = prompt or prompt_list[0]
-        ai_model = kwargs.get("ai_model", "nano-banana")
+        raw_model = str(kwargs.get("ai_model") or "").strip()
+        ai_model = raw_model if raw_model else self._effective_default_image_model()
         aspect_ratio = kwargs.get("aspect_ratio", "1:1")
         enable_pbr = bool(kwargs.get("enable_pbr", True))
         topology = kwargs.get("topology", "triangle")
@@ -4298,7 +4659,7 @@ class Controller(QObject):
                                           "prompt": c.get("prompt", "")} for c in res]
                         with self._meshy_bg_lock:
                             self._bg_galleries[token] = {
-                                "concepts": concepts_full, "mode": mode,
+                                "concepts": concepts_full, "mode": mode, "model": ai_model,
                                 "card_prompt": card_prompt, "tool": tool_name, "label": label}
                             self._meshy_bg.pop(token, None)   # 不再算"运行中"
                         self._sigShowBgGallery.emit(token)
@@ -4355,7 +4716,7 @@ class Controller(QObject):
                     pending = {"prompts": cur_prompts, "refs": base_refs}
                     show(phase="gen", prompt=card_prompt, count=len(cur_prompts),
                          images=[], selected=[], progress=0,
-                         note="切换模型 %s · 重新生成…" % ai_model)
+                         note="切换模型 %s · 重新生成…" % self.imageModelDisplayName(ai_model))
                     continue
 
                 if action == "regenerate":
@@ -4972,6 +5333,7 @@ class Controller(QObject):
         self._ai_row = self._model.append({"type": "ai", "payload": {"bm": bm}})
         block = {"kind": "concept", "token": token, "phase": "pick",
                  "mode": g.get("mode", "concept"), "prompt": g.get("card_prompt", ""),
+                 "model": g.get("model", self._effective_default_image_model()),
                  "images": list(concepts), "selected": [], "progress": 100,
                  "count": len(concepts),
                  "note": "后台已生成 %d 张 · 勾选后可生成 3D / 二次编辑 / 换提示词" % len(concepts)}
@@ -5049,6 +5411,20 @@ class Controller(QObject):
             lines += ["- %s" % p for p in sel_imgs]
             lines.append("请理解意图、写出更好的英文编辑提示词，再调用 "
                          "meshy_image_to_image(image=\"<上面某个路径>\", prompt=\"<优化后的编辑提示>\") 重做。")
+            self._start_run("\n".join(lines), tools=None, max_iter=None, images=None)
+            return
+
+        if action == "set_model":
+            nm = (d.get("model") or "").strip()
+            gen_tool = ("meshy_image_to_image" if g.get("tool") == "meshy_image_to_image"
+                        else "meshy_text_to_image")
+            _blk(phase="done", model=nm or g.get("model", ""),
+                 note="切换模型 %s · 重新生成…" % self.imageModelDisplayName(nm))
+            _drop_token()
+            lines = ["【用户操作 · 切换生图模型重新生成】",
+                     "目标模型：%s" % nm,
+                     "原提示词：%s" % card_prompt,
+                     "请使用相同提示词调用 %s(prompt=..., ai_model=%r) 重新生成。" % (gen_tool, nm)]
             self._start_run("\n".join(lines), tools=None, max_iter=None, images=None)
             return
 
@@ -5940,6 +6316,9 @@ class Controller(QObject):
     def _begin_plan_execution(self):
         if not self._session:
             return
+        # Confirming a restored plan must use execution tools even if another
+        # chat changed the composer to Ask while this plan was waiting.
+        self.setMode("Plan")
         self._plan_phase = "executing"
         self._model.append({"type": "user", "payload": {"text": "▶ 执行计划", "sent_at": time.time()}})
         plan_json = ""
@@ -5989,6 +6368,7 @@ class Controller(QObject):
                 self._session.history.append({"role": "user", "content": "用户驳回了该计划，不要执行。"})
             except Exception:
                 pass
+        self._schedule_message_queue()
         return True
 
     def _ensure_plan_state(self, payload=None):
@@ -6359,6 +6739,7 @@ class Controller(QObject):
         self._calibrate_ctx()
         self._refresh_tokens()
         if err:
+            self._pause_message_queue()
             self._log_chat("ERROR", err)
             self._plan_revision_mode = False
             if self._pending_plan_confirm:
@@ -6386,6 +6767,7 @@ class Controller(QObject):
             self._pending_plan_confirm = False
             if not err and self._plan_phase == "awaiting":
                 QTimer.singleShot(0, self._begin_plan_execution)
+        self._schedule_message_queue()
         # 本轮结束后，若有已完成的后台 Meshy 任务结果在排队，投递给 agent 继续
         if self._meshy_bg_feedback:
             QTimer.singleShot(0, self._flush_bg_feedback)
