@@ -274,7 +274,7 @@ Item {
                         color: Theme.codeBg
                         border.color: ruleBody.activeFocus ? Theme.accentLine : Theme.border
                         border.width: 1; radius: Theme.radSm
-                        TextArea {
+                        PanelTextArea {
                             id: ruleBody
                             objectName: "ruleContentEditor"
                             anchors.fill: parent; anchors.margins: 11
@@ -440,7 +440,7 @@ Item {
                 id: memoryInputScroll
                 Layout.fillWidth: true; Layout.preferredHeight: Theme.fs(140)
                 contentWidth: availableWidth
-                TextArea {
+                PanelTextArea {
                     id: memoryContent; objectName: "memoryContentInput"
                     width: memoryInputScroll.availableWidth
                     placeholderText: mc.loc("写下希望跨会话保留的偏好或经验")

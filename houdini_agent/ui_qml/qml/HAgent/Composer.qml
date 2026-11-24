@@ -156,7 +156,7 @@ Rectangle {
                     rightPadding: ScrollBar.vertical.implicitWidth + Theme.sp(3)
                     Layout.preferredHeight: Math.min(composer.inputHeightLimit, Math.max(Theme.fs(44), inputArea.contentHeight + 12))
                     clip: true
-                    TextArea {
+                    PanelTextArea {
                         id: inputArea
                         objectName: "messageInput"
                         width: inputScroll.availableWidth

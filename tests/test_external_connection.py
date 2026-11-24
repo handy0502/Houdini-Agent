@@ -3,6 +3,8 @@ import json
 import socketserver
 import threading
 import time
+import sys
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -153,3 +155,29 @@ def test_manual_disconnect_blocks_requests_until_another_session_is_chosen(coord
     assert coord.connected and not ctrl.houdiniConnection["paused"]
     assert ctrl.houdiniConnection["port"] == second_port
     assert coord.bridge.ping()["status"] == "ok"
+
+
+@pytest.mark.skipif(not sys.platform.startswith('linux'), reason='Native Linux startup integration')
+def test_linux_start_installs_package_and_automatically_connects(coordinator, bridge_factory, monkeypatch, tmp_path):
+    from houdini_agent.launcher import houdini_discovery as hd
+    app, coord, ctrl = coordinator
+    install = tmp_path / 'hfs21.0.631'
+    (install / 'bin').mkdir(parents=True)
+    binary = install / 'bin/houdini'
+    binary.write_text('#!/bin/sh\nexit 0\n')
+    binary.chmod(0o755)
+    home = tmp_path / 'home'
+    home.mkdir()
+    monkeypatch.setattr(Path, 'home', lambda: home)
+    monkeypatch.setenv('HFS', str(install))
+    monkeypatch.setattr(hd, '_linux_install_roots', lambda: [])
+    monkeypatch.setattr(hd.shutil, 'which', lambda name: None)
+    bridge = bridge_factory()
+    port = bridge.server_address[1]
+    monkeypatch.setenv('HAGENT_BRIDGE_PORT', str(port))
+    coord.start()
+    probe(app, coord)
+    assert coord.installs[0]['version'] == '21.0.631'
+    assert (home / 'houdini21.0/packages/HoudiniAgent.json').is_file()
+    assert coord.connected and ctrl.houdiniConnection['port'] == port
+    assert coord._launch_process is None  # Startup must not launch Houdini itself.

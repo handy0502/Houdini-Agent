@@ -343,6 +343,10 @@ All `hou.*` calls run on Houdini's main thread over the bridge, keeping things t
 > ```
 > Or build the standalone app yourself with `build_houdini_agent_exe.ps1` (PyInstaller).
 
+### Linux standalone (Rocky Linux 9)
+
+Linux work lives on `codex/linux-support`. Install Python 3.11+ and the Qt/X11 runtime libraries, then run `bash start_houdini_agent.sh --setup` once and `bash start_houdini_agent.sh` to open the independent UI. Use `--houdini-root /studio/software` for custom Houdini installations or `--check` for non-GUI diagnostics. The launcher installs Bridge packages into `~/houdiniX.Y/packages`, automatically connects to a ready Bridge, and only starts Houdini when explicitly selected in the UI. See the [Rocky Linux setup guide](README_CN.md#rocky-linux-9-独立启动) for system packages and first-connection details.
+
 ### Configure API Keys
 
 **Option A: Environment Variables (recommended)**

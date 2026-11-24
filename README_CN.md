@@ -349,6 +349,39 @@ Houdini Agent 现在是**独立桌面程序**，通过 **Bridge** 连接正在�
 > ```
 > 或用 `build_houdini_agent_exe.ps1` 自行构建独立程序（PyInstaller）。
 
+### Rocky Linux 9 独立启动
+
+Linux 适配在 `codex/linux-support` 分支，使用系统 Python 的独立虚拟环境运行，不需要先打开 Houdini。目标环境为 **Rocky Linux 9 x86_64、Python 3.11+、X11 桌面**。Houdini 19.5+ 通过 Bridge 连接，Agent 使用自己的 Qt6，不要求 Houdini 内部也使用 Qt6。
+
+安装系统依赖（需要管理员权限）：
+
+```bash
+sudo dnf install -y python3.11 python3.11-pip \
+  libX11-xcb libxcb xcb-util-cursor xcb-util-image xcb-util-keysyms \
+  xcb-util-renderutil xcb-util-wm libxkbcommon-x11 libXrender libXi \
+  libXext libXfixes libSM libICE libXcomposite libXdamage \
+  mesa-libGL mesa-libEGL libglvnd-opengl glib2 fontconfig freetype dbus-libs google-noto-sans-cjk-fonts
+```
+
+在当前用户可写的项目目录中首次安装依赖，然后启动：
+
+```bash
+cd /path/to/Houdini-Agent
+bash start_houdini_agent.sh --setup
+bash start_houdini_agent.sh
+```
+
+`--setup` 只在项目下创建 `.venv` 并安装依赖，不修改系统 Python。可用 `HAGENT_PYTHON=/path/to/python3.11` 指定解释器。后续直接运行启动脚本即可，无需重复安装。
+
+- 默认检测 `/opt/hfs*`、`/opt/hfs/`、`/opt/sidefx/versions/` 等目录，并读取 `HFS` 和 `PATH`。自定义安装可使用 `bash start_houdini_agent.sh --houdini-root /studio/software`，也可设置 `HAGENT_HOUDINI_ROOTS=/path/one:/path/two`。
+- Bridge 包自动写入 `~/houdiniX.Y/packages/HoudiniAgent.json`，支持 `HOUDINI_USER_PREF_DIR` 和 `__HVER__` 占位符。
+- Agent 启动不会主动拉起 Houdini；已加载 Bridge 的会话会自动连接。也可点击右上角的 Houdini 状态按钮，选择启动已检测到的版本。首次安装 Bridge 时，已打开且未加载 Bridge 的 Houdini 需要保存场景后重启。
+- 启动 Houdini 时会先加载该版本的 `houdini_setup`，并隔离 Agent 的 Python/Qt 环境。Houdini 关闭后会更新状态，重新打开后自动重连；手动断开后需自行重新选择会话。
+- 诊断命令：`bash start_houdini_agent.sh --check`，只显示 Python、依赖、安装版本及图形会话状态；`--install-bridge` 可单独安装 Bridge 包。
+- SideFX 当前要求 X11；使用 GNOME 时选择 Xorg 会话。缺少显示服务的服务器只能运行诊断/后台测试，不能显示交互界面。
+
+平台参考：[SideFX 系统要求](https://www.sidefx.com/Support/system-requirements/)、[Houdini Packages](https://www.sidefx.com/docs/houdini/ref/plugins.html)。项目增加了 Rocky 9 容器 CI；通过不带真实 Houdini 的自动测试不能替代显卡驱动、许可证和真实场景的实机验收。
+
 ### 配置 API Key
 
 **方式一：环境变量（推荐）**

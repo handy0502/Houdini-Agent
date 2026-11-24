@@ -1,0 +1,4 @@
+# Standalone UI on Rocky Linux 9 (Python 3.11+, x86_64).
+PySide6-Essentials>=6.8.3,<7
+numpy>=1.24,<3
+requests>=2.32,<3

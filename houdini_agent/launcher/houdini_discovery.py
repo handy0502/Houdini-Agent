@@ -9,10 +9,15 @@ import json
 import os
 import re
 import subprocess
+import shutil
+import sys
 from pathlib import Path
 
 
 MIN_VERSION = (19, 5)
+_IS_WINDOWS = os.name == "nt"
+_IS_LINUX = sys.platform.startswith("linux")
+_PROC_ROOT = Path("/proc")
 
 
 def _version_tuple(text):
@@ -28,28 +33,65 @@ def _version_ok(ver):
     return (ver[0], ver[1]) >= MIN_VERSION
 
 
+def _linux_install_roots():
+    return [Path('/opt'), Path('/opt/hfs'), Path('/opt/sidefx'), Path('/opt/sidefx/versions'),
+            Path('/usr/local'), Path.home() / 'sidefx' / 'versions']
+
+
+def _path_key(path):
+    key = str(path.resolve())
+    return key.lower() if _IS_WINDOWS else key
+
+
 def _candidate_dirs():
+    roots = []
+    if os.environ.get('HFS'):
+        roots.append(Path(os.environ['HFS']))
+    if _IS_LINUX:
+        roots.extend(Path(p).expanduser() for p in os.environ.get('HAGENT_HOUDINI_ROOTS', '').split(':') if p)
+        roots.extend(_linux_install_roots())
+        binary = shutil.which('houdini') or shutil.which('houdinifx')
+        if binary:
+            roots.append(Path(binary).resolve().parent.parent)
+    else:
+        roots.extend([
+            Path(os.environ.get('ProgramFiles', r'C:\Program Files')) / 'Side Effects Software',
+            Path(os.environ.get('ProgramW6432', r'C:\Program Files')) / 'Side Effects Software',
+        ])
     seen = set()
-    roots = [
-        Path(os.environ.get("HFS", "")),
-        Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Side Effects Software",
-        Path(os.environ.get("ProgramW6432", r"C:\Program Files")) / "Side Effects Software",
-    ]
     for root in roots:
-        if not str(root) or not root.exists():
+        if not root.is_dir():
             continue
-        if root.name.lower().startswith("houdini"):
+        try:
+            dirs = [root] + sorted((d for d in root.iterdir() if d.is_dir()), reverse=True)
+        except OSError:
             dirs = [root]
-        else:
-            dirs = sorted(root.glob("Houdini*"), reverse=True)
-        for d in dirs:
-            key = str(d).lower()
-            if d.is_dir() and key not in seen:
+        for directory in dirs:
+            key = _path_key(directory)
+            if key not in seen:
                 seen.add(key)
-                yield d, d.name
+                yield directory.resolve(), directory.resolve().name
+
+
+def _install_version(directory, hint):
+    version = _version_tuple(hint) or _version_tuple(directory.name)
+    if version:
+        return version
+    # A studio HFS may point to a non-versioned directory.
+    try:
+        header = (directory / 'toolkit/include/SYS/SYS_Version.h').read_text(encoding='utf-8')
+        values = [re.search(r'#define\s+SYS_VERSION_' + name + r'_INT\s+(\d+)', header)
+                  for name in ('MAJOR', 'MINOR', 'BUILD')]
+        if all(values):
+            return tuple(int(value.group(1)) for value in values)
+    except OSError:
+        pass
+    return None
 
 
 def _registry_dirs():
+    if not _IS_WINDOWS:
+        return
     try:
         import winreg
     except Exception:
@@ -103,17 +145,17 @@ def find_houdini_installs():
     seen = set()
     for item in list(_candidate_dirs()) + list(_registry_dirs() or []):
         d, ver_hint = item if isinstance(item, tuple) else (item, None)
-        ver = _version_tuple(ver_hint) or _version_tuple(d.name) or _version_tuple(str(d))
+        ver = _install_version(d, ver_hint)
         exe = None
-        for rel in ("bin/houdini.exe", "bin/houdinifx.exe", "bin/houdinicore.exe",
-                    "houdini.exe", "houdinifx.exe", "houdinicore.exe"):
+        names = ("houdini.exe", "houdinifx.exe", "houdinicore.exe") if _IS_WINDOWS else ("houdini", "houdinifx", "houdinicore")
+        for rel in ["bin/" + name for name in names] + list(names):
             p = d / rel
-            if p.exists():
+            if p.is_file() and (_IS_WINDOWS or os.access(p, os.X_OK)):
                 exe = p
                 break
         if exe is None or not exe.exists() or not _version_ok(ver):
             continue
-        key = str(exe).lower()
+        key = _path_key(exe)
         if key in seen:
             continue
         seen.add(key)
@@ -128,7 +170,20 @@ def find_houdini_installs():
 
 
 def is_houdini_running():
-    if os.name != "nt":
+    if _IS_LINUX:
+        names = {'houdini', 'houdinifx', 'houdinicore', 'houdini-bin', 'houdinifx-bin', 'houdinicore-bin'}
+        try:
+            for process in _PROC_ROOT.iterdir():
+                if process.name.isdigit():
+                    try:
+                        if (process / 'comm').read_text().strip() in names:
+                            return True
+                    except OSError:
+                        continue
+        except OSError:
+            pass
+        return False
+    if not _IS_WINDOWS:
         return False
     try:
         out = subprocess.check_output(
@@ -146,6 +201,8 @@ def _documents_candidates():
     """按可信度排序的「文档」目录候选。Houdini 通过 shell API 解析 Documents，
     中文机常见把「文档」移到 D 盘 / 被 OneDrive 重定向——那时真实路径只有注册表知道，
     而 %USERPROFILE%\\Documents 是错的（此前只写这里导致部分用户集成包永远不加载）。"""
+    if _IS_LINUX:
+        return [Path.home()]
     out = []
     try:
         import winreg
@@ -167,7 +224,7 @@ def _documents_candidates():
     out.append(Path.home() / "Documents")
     seen, uniq = set(), []
     for p in out:
-        k = str(p).lower()
+        k = _path_key(p)
         if k not in seen:
             seen.add(k)
             uniq.append(p)
@@ -189,7 +246,7 @@ def user_pref_dirs(major_minor):
         dirs.append(doc / ("houdini%s" % major_minor))
     seen, uniq = set(), []
     for p in dirs:
-        k = str(p).lower()
+        k = _path_key(p)
         if k not in seen:
             seen.add(k)
             uniq.append(p)
@@ -233,12 +290,13 @@ def _bridge_python_root(repo_root):
 def _package_json(repo_root):
     py_root = _bridge_python_root(repo_root)
     package_root = (py_root / "houdini_agent" / "houdini_package").resolve()
+    separator = ';' if _IS_WINDOWS else ':'
     return {
         "enable": True,
         "env": [
             {"HAGENT_REPO": str(py_root).replace("\\", "/")},
-            {"PYTHONPATH": str(py_root).replace("\\", "/") + ";&"},
-            {"HOUDINI_PATH": str(package_root).replace("\\", "/") + ";&"},
+            {"PYTHONPATH": str(py_root).replace("\\", "/") + separator + "&"},
+            {"HOUDINI_PATH": str(package_root).replace("\\", "/") + separator + "&"},
         ],
     }
 
@@ -287,7 +345,27 @@ def install_all_packages(repo_root, installs=None):
 
 def launch_houdini(repo_root, install):
     install_package(repo_root, install)
-    env = {k: v for k, v in os.environ.items() if not k.upper().startswith("PYTHON")}
-    env["HAGENT_REPO"] = str(_bridge_python_root(repo_root))
-    env["HAGENT_EXTERNAL_LAUNCH"] = "1"
-    return subprocess.Popen([install["exe"]], cwd=install["path"], env=env)
+    env = {k: v for k, v in os.environ.items() if not k.upper().startswith('PYTHON')}
+    env['HAGENT_REPO'] = str(_bridge_python_root(repo_root))
+    env['HAGENT_EXTERNAL_LAUNCH'] = '1'
+    if _IS_LINUX:
+        # Keep the Agent's venv/Qt libraries out of Houdini's bundled Python/Qt.
+        for key in ('QT_PLUGIN_PATH', 'QT_QPA_PLATFORM_PLUGIN_PATH', 'QML_IMPORT_PATH',
+                    'QML2_IMPORT_PATH', 'QT_QUICK_CONTROLS_STYLE', 'VIRTUAL_ENV'):
+            env.pop(key, None)
+        if 'LD_LIBRARY_PATH_ORIG' in env:
+            original = env.pop('LD_LIBRARY_PATH_ORIG')
+            if original:
+                env['LD_LIBRARY_PATH'] = original
+            else:
+                env.pop('LD_LIBRARY_PATH', None)
+        setup = Path(install['path']) / 'houdini_setup'
+        if not setup.is_file():
+            raise RuntimeError('Missing Houdini environment setup: %s' % setup)
+        # Paths are positional arguments, never interpolated into shell code.
+        return subprocess.Popen(['/bin/bash', '-c',
+            'hagent_install=$1; hagent_executable=$2; set --; '
+            'source "$hagent_install/houdini_setup" >/dev/null && exec "$hagent_executable"',
+            'hagent-houdini', install['path'], install['exe']],
+            cwd=install['path'], env=env, start_new_session=True)
+    return subprocess.Popen([install['exe']], cwd=install['path'], env=env)
