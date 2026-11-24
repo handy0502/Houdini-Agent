@@ -1,4 +1,5 @@
 module HAgent
+QueuedMessages 1.0 QueuedMessages.qml
 RequestError 1.0 RequestError.qml
 singleton Theme Theme.qml
 AppIcon AppIcon.qml

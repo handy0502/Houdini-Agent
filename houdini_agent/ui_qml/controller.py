@@ -572,6 +572,8 @@ class Controller(QObject):
     toast = Signal(str)                   # transient message
     prefillComposer = Signal(str)         # text -> 预填输入框并聚焦（库里"+用 Meshy 生成"）
     restoreFailedDraft = Signal(str)
+    messageQueueChanged = Signal()
+    modeChanged = Signal()
     requestOpenHoudini = Signal()
     requestHoudiniAction = Signal(str)
     openHoudiniMenu = Signal()
@@ -1118,6 +1120,98 @@ class Controller(QObject):
     def _get_running(self): return self._running
     running = Property(bool, _get_running, notify=runningChanged)
 
+    def _queue_session(self):
+        sessions = getattr(self, "_sessions", [])
+        active = getattr(self, "_active", -1)
+        return sessions[active] if 0 <= active < len(sessions) else {}
+
+    def _get_queued_messages(self):
+        return [{"id": item["id"], "text": item["text"], "images": len(item.get("images", []))}
+                for item in self._queue_session().get("outbox", [])]
+
+    queuedMessages = Property("QVariantList", _get_queued_messages, notify=messageQueueChanged)
+
+    def _get_queued_count(self):
+        return len(self._queue_session().get("outbox", []))
+
+    queuedCount = Property(int, _get_queued_count, notify=messageQueueChanged)
+
+    def _get_queue_paused(self):
+        return bool(self._queue_session().get("outbox_paused", False))
+
+    queuePaused = Property(bool, _get_queue_paused, notify=messageQueueChanged)
+
+    def _get_mode(self): return self._mode
+    mode = Property(str, _get_mode, notify=modeChanged)
+
+    def _queue_changed(self):
+        self.messageQueueChanged.emit()
+        self._save_all()
+
+    def _pause_message_queue(self):
+        self._queue_session()["outbox_paused"] = True
+        self._queue_changed()
+
+    @Slot(str)
+    def removeQueuedMessage(self, message_id):
+        session = self._queue_session()
+        session["outbox"] = [item for item in session.get("outbox", []) if item["id"] != message_id]
+        self._queue_changed()
+
+    @Slot(str)
+    def editQueuedMessage(self, message_id):
+        item = next((item for item in self._queue_session().get("outbox", [])
+                     if item["id"] == message_id), None)
+        if item is None:
+            return
+        images, missing = self._decode_message_images(item.get("images", []))
+        for image in images:
+            if image not in self._pending_images:
+                self._pending_images.append(image)
+        self.removeQueuedMessage(message_id)
+        self.imagesChanged.emit()
+        self.restoreFailedDraft.emit(item["text"])
+        if missing:
+            self.toast.emit("部分附件已丢失，请重新添加")
+
+    @Slot()
+    def resumeMessageQueue(self):
+        self._queue_session()["outbox_paused"] = False
+        self._queue_changed()
+        self._schedule_message_queue()
+
+    def _schedule_message_queue(self):
+        sid = self._queue_session().get("id")
+        if sid and self._get_queued_count() and not self._get_queue_paused():
+            QTimer.singleShot(0, lambda: self._dispatch_queued_message(sid))
+
+    def _dispatch_queued_message(self, session_id):
+        session = self._queue_session()
+        if (self._running or session.get("id") != session_id or self._get_queue_paused()
+                or not session.get("outbox") or self._awaiting_current_plan()):
+            return
+        item = session["outbox"][0]
+        provider, model = item["provider"], item["model"]
+        if model not in self._provider_model_names(provider):
+            self._pause_message_queue()
+            self.toast.emit("排队消息的模型已不可用，请退回输入框后重新发送")
+            return
+        images, missing = self._decode_message_images(item.get("images", []))
+        if missing:
+            self._pause_message_queue()
+            self.toast.emit("排队消息的附件已丢失，请退回输入框重新添加")
+            return
+        self.setProvider(provider)
+        self.setModel(model)
+        self.setMode(item["mode"])
+        if item.get("effort"):
+            self.setReasoningEffort(item["effort"])
+        if self._send_now(item["text"], images):
+            session["outbox"] = session["outbox"][1:]
+            self._queue_changed()
+        else:
+            self._pause_message_queue()
+
     def _get_confirm(self): return self._confirm_mode
     confirmMode = Property(bool, _get_confirm, notify=confirmModeChanged)
 
@@ -1501,6 +1595,7 @@ class Controller(QObject):
             self.toast.emit("当前正在运行，模式切换将在本轮结束后再操作")
             return False
         self._mode = m
+        self.modeChanged.emit()
         return True
 
     @Slot(float)
@@ -1681,6 +1776,7 @@ class Controller(QObject):
         s["history"] = copy.deepcopy(self._session.history) if self._session else []
         s["provider"] = self._provider
         s["model"] = self._model_name
+        s["plan_phase"] = self._plan_phase
         s["updated"] = time.time()
 
     @staticmethod
@@ -1759,6 +1855,10 @@ class Controller(QObject):
             return
         used = set()
         for sess in self._sessions:
+            for item in sess.get("outbox", []):
+                for src in item.get("images", []):
+                    if isinstance(src, str) and src.startswith("file:"):
+                        used.add(src.rsplit("/", 1)[-1])
             for it in sess.get("rows", []) or []:
                 pay = it.get("payload") if isinstance(it, dict) else None
                 if not isinstance(pay, dict):
@@ -1804,6 +1904,10 @@ class Controller(QObject):
         # 切换/新建会话时清掉上一会话残留的附带图片，避免它泄漏到新会话的图生图里。
         self._last_attached_images = []
         s = self._sessions[self._active]
+        # Restoring/switching chats never starts unattended queued work.
+        if s.get("outbox"):
+            s["outbox_paused"] = True
+        self.messageQueueChanged.emit()
         rows = copy.deepcopy(s.get("rows", []))
         self._sanitize_rows(rows)
         for it in rows:
@@ -1831,10 +1935,28 @@ class Controller(QObject):
             self._session.history = copy.deepcopy(s.get("history", []))
         self._bind_usage(s)
         self._reset_run_state()
+        self._restore_plan_state(s)
+        self._refresh_tokens()
+
+    def _restore_plan_state(self, session):
+        """Bind plan pointers and confirmation gating to the loaded chat only."""
+        self._plan_phase = "idle"
         self._plan_row = None
         self._plan_payload = None
         self._plan_idmap = {}
-        self._refresh_tokens()
+        self._pending_plan_confirm = False
+        if self._ensure_plan_state() and session.get("plan_phase") == "awaiting":
+            self._plan_phase = "awaiting"
+
+    def _awaiting_current_plan(self):
+        if self._plan_phase != "awaiting":
+            return False
+        if self._ensure_plan_state():
+            return True
+        # An old/corrupt phase cannot block a chat with no plan to confirm.
+        self._plan_phase = "idle"
+        self._pending_plan_confirm = False
+        return False
 
     @staticmethod
     def _new_token_stats():
@@ -1945,7 +2067,8 @@ class Controller(QObject):
         self._sessions[self._active]["history"] = []
         self._bind_usage(self._sessions[self._active], reset=True)
         self._reset_run_state()
-        self._plan_row = None
+        self._sessions[self._active]["plan_phase"] = "idle"
+        self._restore_plan_state(self._sessions[self._active])
         self._refresh_tokens()
         self._save_all()
         self.toast.emit(self.tr("清空对话"))
@@ -2969,10 +3092,22 @@ class Controller(QObject):
                         and item.get("payload", {}).get("failed")), None)
         if payload is None:
             return False
+        images, missing = self._decode_message_images(payload.get("images", []))
+        for image in images:
+            if image not in self._pending_images:
+                self._pending_images.append(image)
+        self.imagesChanged.emit()
+        self.restoreFailedDraft.emit(payload.get("text", ""))
+        if missing:
+            self.toast.emit("原消息已返回输入框，部分附件已丢失，请重新添加")
+        return True
+
+    def _decode_message_images(self, sources):
         from urllib.parse import urlsplit
         from urllib.request import url2pathname
         missing = False
-        for src in payload.get("images", []) or []:
+        images = []
+        for src in sources or []:
             try:
                 if src.startswith("data:image/"):
                     header, b64 = src.split(",", 1)
@@ -2992,15 +3127,11 @@ class Controller(QObject):
                         raise ValueError("unsupported attachment")
                     b64 = base64.b64encode(path.read_bytes()).decode("ascii")
                 image = (b64, mt)
-                if image not in self._pending_images:
-                    self._pending_images.append(image)
+                if image not in images:
+                    images.append(image)
             except (ValueError, OSError, TypeError, AttributeError):
                 missing = True
-        self.imagesChanged.emit()
-        self.restoreFailedDraft.emit(payload.get("text", ""))
-        if missing:
-            self.toast.emit("原消息已返回输入框，部分附件已丢失，请重新添加")
-        return True
+        return images, missing
 
     @Slot(int)
     def removeImage(self, idx):
@@ -3427,6 +3558,9 @@ class Controller(QObject):
                 data = {"id": s["id"], "title": s["title"], "rows": s["rows"], "history": s["history"],
                         "provider": s.get("provider", self._provider),
                         "model": s.get("model", self._model_name),
+                        "outbox": s.get("outbox", []),
+                        "outbox_paused": s.get("outbox_paused", False),
+                        "plan_phase": s.get("plan_phase", "idle"),
                         "usage": s.get("usage") or {}}
                 (self._cache_dir / ("session_%s.json" % s["id"])).write_text(
                     json.dumps(data, ensure_ascii=False, default=str), encoding="utf-8")
@@ -3439,7 +3573,9 @@ class Controller(QObject):
 
     def _session_sig(self, s):
         return (s.get("rows"), s.get("history"), s.get("title"),
-                s.get("provider", self._provider), s.get("model", self._model_name))
+                s.get("provider", self._provider), s.get("model", self._model_name),
+                tuple(item["id"] for item in s.get("outbox", [])), s.get("outbox_paused", False),
+                s.get("plan_phase", "idle"))
 
     @Slot()
     def restore(self):
@@ -3460,6 +3596,8 @@ class Controller(QObject):
                                    "rows": d.get("rows", []), "history": d.get("history", []),
                                    "provider": d.get("provider", entry.get("provider", self._provider)),
                                    "model": d.get("model", entry.get("model", self._model_name)),
+                                   "outbox": d.get("outbox", []), "outbox_paused": True,
+                                   "plan_phase": d.get("plan_phase", "idle"),
                                    "usage": d.get("usage") if isinstance(d.get("usage"), dict) else {}})
             if loaded:
                 self._sessions = loaded
@@ -3514,6 +3652,7 @@ class Controller(QObject):
 
     @Slot()
     def stop(self):
+        self._pause_message_queue()
         if self._session:
             self._session.stop()
         self.toast.emit("正在请求停止…当前工具完成/超时后会停下")
@@ -3521,10 +3660,30 @@ class Controller(QObject):
     @Slot(str, result=bool)
     def send(self, text):
         text = (text or "").strip()
-        if not text or self._running:
-            if self._running:
-                self.toast.emit("当前正在运行，先停止或等待完成后再发送")
+        if not text:
             return False
+        if self._running or self._get_queued_count() or self._awaiting_current_plan():
+            session = self._queue_session()
+            if not session.get("id"):
+                return False
+            item = {"id": uuid.uuid4().hex, "text": text, "provider": self._provider,
+                    "model": self._model_name, "mode": self._mode,
+                    "effort": self._current_effort(),
+                    "images": [self._externalize_image(src) for src in self.pendingImageUris()]}
+            session["outbox"] = session.get("outbox", []) + [item]
+            self._pending_images = []
+            self.imagesChanged.emit()
+            self._queue_changed()
+            self._schedule_message_queue()
+            return True
+        if not self._send_now(text, list(self._pending_images)):
+            return False
+        self._queue_session()["outbox_paused"] = False
+        self._pending_images = []
+        self.imagesChanged.emit()
+        return True
+
+    def _send_now(self, text, attached_images):
         if self._sub_kind() and self._session and not self._sub_logged_in():
             self.toast.emit(self.tr("请先登录 %s" % PROVIDER_LABELS.get(self._provider, "")))
             self._sub_dialog_provider = self._provider
@@ -3538,23 +3697,20 @@ class Controller(QObject):
         # 记下最近一次附带的图片(data URI)，供 meshy_image_to_image 做图生图时引用。
         # 只在【本轮确实有附图】时更新——这样"先传图、下一轮再说改图"也能拿到图，
         # 不会因为后续纯文字轮把它清空（之前的 bug 就是这样丢图的）。
-        if self._pending_images:
+        if attached_images:
             self._last_attached_images = [
-                "data:%s;base64,%s" % (mt, b64) for (b64, mt) in self._pending_images
+                "data:%s;base64,%s" % (mt, b64) for (b64, mt) in attached_images
             ]
-        images = self._pending_images if supports_vision else []
-        if self._pending_images and not supports_vision:
+        images = attached_images if supports_vision else []
+        if attached_images and not supports_vision:
             self.toast.emit("当前模型不支持图片输入，本次只发送文本（但图片仍可用于 Meshy 图生图）")
         payload = {"text": text, "id": uuid.uuid4().hex, "sent_at": time.time()}
         # 在用户气泡里显示附带的缩略图（无论模型是否支持视觉，用户都该看到自己上传了什么）
-        if self._pending_images:
+        if attached_images:
             payload["images"] = [self._externalize_image("data:%s;base64,%s" % (mt, b64))
-                                 for (b64, mt) in self._pending_images]
+                                 for (b64, mt) in attached_images]
         self._model.append({"type": "user", "payload": payload})
         self._log_chat("USER", text)
-        self._pending_images = []
-        if images or not supports_vision:
-            self.imagesChanged.emit()
         if self._session and self._mode == "Plan":
             self._plan_phase = "planning"
             self._start_run(text, tools=self._planning_tools(), max_iter=20, images=images)
@@ -5940,6 +6096,9 @@ class Controller(QObject):
     def _begin_plan_execution(self):
         if not self._session:
             return
+        # Confirming a restored plan must use execution tools even if another
+        # chat changed the composer to Ask while this plan was waiting.
+        self.setMode("Plan")
         self._plan_phase = "executing"
         self._model.append({"type": "user", "payload": {"text": "▶ 执行计划", "sent_at": time.time()}})
         plan_json = ""
@@ -5989,6 +6148,7 @@ class Controller(QObject):
                 self._session.history.append({"role": "user", "content": "用户驳回了该计划，不要执行。"})
             except Exception:
                 pass
+        self._schedule_message_queue()
         return True
 
     def _ensure_plan_state(self, payload=None):
@@ -6359,6 +6519,7 @@ class Controller(QObject):
         self._calibrate_ctx()
         self._refresh_tokens()
         if err:
+            self._pause_message_queue()
             self._log_chat("ERROR", err)
             self._plan_revision_mode = False
             if self._pending_plan_confirm:
@@ -6386,6 +6547,7 @@ class Controller(QObject):
             self._pending_plan_confirm = False
             if not err and self._plan_phase == "awaiting":
                 QTimer.singleShot(0, self._begin_plan_execution)
+        self._schedule_message_queue()
         # 本轮结束后，若有已完成的后台 Meshy 任务结果在排队，投递给 agent 继续
         if self._meshy_bg_feedback:
             QTimer.singleShot(0, self._flush_bg_feedback)

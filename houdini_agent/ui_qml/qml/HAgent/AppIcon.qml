@@ -43,6 +43,8 @@ Canvas {
             line(5, 12, 10, 17); line(10, 17, 19, 7)
         } else if (name === "minus") {
             line(5, 12, 19, 12)
+        } else if (name === "stop") {
+            c.roundedRect(6, 6, 12, 12, 2, 2)
         } else if (name === "more") {
             for (var i = 0; i < 3; i++) { c.moveTo(6 + i * 6, 12); c.arc(6 + i * 6, 12, 0.8, 0, Math.PI * 2) }
         } else if (name === "cube") {
