@@ -97,9 +97,9 @@ def show_tool(mock=False):
 
     QApplication, QMainWindow, Qt = _qt()
     try:
-        from PySide6.QtCore import QSettings, QTimer
+        from PySide6.QtCore import QSettings
     except ImportError:
-        from PySide2.QtCore import QSettings, QTimer
+        from PySide2.QtCore import QSettings
     app = QApplication.instance() or QApplication([])
 
     parent = None
@@ -119,12 +119,11 @@ def show_tool(mock=False):
             pass
         app._hagent_qml_window = None
 
-    model = ctrl_mod.ChatModel()
-    controller = ctrl_mod.Controller(model, use_backend=True)
-    try:
-        controller.restore()
-    except Exception:
-        pass
+    # 与面板 Tab 共用同一份会话（pane.session 是进程级单例）：浮动窗口和面板同时
+    # 打开时不会再各写一份 cache/qml_sessions，历史也不会互相覆盖。restore、
+    # 切 hip 落盘、更新检查都由 pane 统一负责。
+    from houdini_agent.ui_qml import pane as _pane
+    controller, model = _pane.session(use_backend=True)
     if mock and controller._session is None:
         try:
             model.load(ctrl_mod.wrap_ai_rows(preview_mod.mock_conversation()))
@@ -151,21 +150,6 @@ def show_tool(mock=False):
     if not restored:
         win.resize(440, 820)
 
-    # save sessions when the Houdini scene changes
-    try:
-        import hou
-        ctrl = view._controller
-
-        def _on_hip(event_type):
-            try:
-                if event_type in (hou.hipFileEventType.BeforeClear, hou.hipFileEventType.BeforeLoad):
-                    ctrl._save_all()
-            except Exception:
-                pass
-        hou.hipFile.addEventCallback(_on_hip)
-    except Exception:
-        pass
-
     win.show()
     win.raise_()
     win.activateWindow()
@@ -173,8 +157,6 @@ def show_tool(mock=False):
     # Meshy 资产库：改为窗口内的浮层抽屉（向内叠在聊天之上，未被面板覆盖处用半透明
     # 磨砂遮罩盖住，点遮罩关闭），完全由 QML（Main.qml 的 libOverlay）处理，
     # 不再改动主窗口几何 / 不向外加宽。
-
-    QTimer.singleShot(4000, view._controller.silentUpdateCheck)
 
     app._hagent_qml_window = win
     return win

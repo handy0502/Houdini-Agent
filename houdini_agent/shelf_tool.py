@@ -1,6 +1,10 @@
 """
 Houdini Agent - Shelf Tool Entry Point
 Copy this code into a Houdini Shelf Tool to launch the agent.
+
+两种形态：
+  main.show_tool()   浮动窗口（默认；设 HAGENT_UI=pane 时优先走面板 Tab）
+  main.show_panel()  直接作为 Houdini 面板 Tab（Python Panel）打开
 """
 
 import sys

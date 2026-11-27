@@ -215,7 +215,10 @@ Item {
         objectName: "providerListScroll"
         anchors.fill: parent; visible: pm.editingId === ""; clip: true
         contentWidth: availableWidth
+        // 供应商列表是面板打开后才填进来的，ScrollView 不会自己重新测量
+        contentImplicitHeight: providerColumn.implicitHeight
         ColumnLayout {
+            id: providerColumn
             width: providerScroll.availableWidth; spacing: 0
             Text {
                 Layout.fillWidth: true; Layout.bottomMargin: Theme.sp(14)
@@ -258,7 +261,10 @@ Item {
             id: editScroll
             objectName: "providerConfigScroll"
             Layout.fillWidth: true; Layout.fillHeight: true; clip: true; contentWidth: availableWidth
+            // 表单随模型数量/订阅态增减字段，同样需要显式同步内容高度
+            contentImplicitHeight: editColumn.implicitHeight
             ColumnLayout {
+                id: editColumn
                 width: editScroll.availableWidth; spacing: 0
                 FieldLabel { visible: !pm.editingBuiltin; text: pm.loc("名称") }
                 Field { objectName: "providerNameField"; visible: !pm.editingBuiltin; Layout.fillWidth: true; text: pm.fName

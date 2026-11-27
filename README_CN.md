@@ -4,7 +4,7 @@
 
 独立运行的 SideFX Houdini AI 智能助手，支持自主多轮工具调用、**Meshy AI 3D 生成**（文/图生 3D、概念图画廊、图生图/二次编辑、重打材质、重拓扑）、**云资产库**、联网搜索、VEX/Python 代码执行、Plan 模式规划复杂任务、大脑启发式长期记忆系统、插件 Hook 系统支持社区扩展、用户自定义上下文规则，配备现代 **QML/Qt Quick** 桌面 UI 与双语支持。
 
-从 **v2.0** 起，Houdini Agent 以**独立桌面程序**形式运行，通过轻量 **Bridge** 连接正在运行的 Houdini。当前分支采用接近 Codex 的 QML/Qt Quick 桌面布局；也保留 Houdini 内嵌启动入口。
+从 **v2.0** 起，Houdini Agent 以**独立桌面程序**形式运行，通过轻量 **Bridge** 连接正在运行的 Houdini。当前分支采用接近 Codex 的 QML/Qt Quick 桌面布局；也保留 Houdini 内嵌启动入口：浮动窗口，或可停靠的面板 Tab。
 
 基于 **OpenAI Function Calling** 协议，Agent 可以读取节点网络、创建/修改/连接节点、编写 VEX Wrangle、用 Meshy 生成并导入 3D 资产、执行系统命令、联网搜索、查询本地文档、创建结构化执行计划、从历史交互中持续学习、通过插件扩展能力 —— 全部在自主循环中迭代完成。统一的 **ToolRegistry** 集中管理核心工具、技能脚本和插件工具，支持基于模式的访问控制。
 
@@ -17,6 +17,7 @@
 - **桌面与会话体验**：可调宽侧栏、历史消息导航、统一设置、连接状态按钮、消息复制与发送时间、失败消息退回输入框；思考结束后自动折叠。[界面说明](#qmlqt-quick-桌面界面)
 - **串行消息队列**：运行中继续发送可排队；停止、失败或恢复历史会话后的队列需手动继续，避免多个对话同时修改同一个 Houdini。
 - **供应商与记忆**：统一配置入口、供应商级验证及本地结果复用；新增 `save_memory` 工具和手动新增记忆入口。[记忆用法](#长期记忆)
+- **面板 Tab 内嵌**：集成包自带 Python Panel 定义，对话面板可作为 Houdini 面板 Tab 停靠、拆分并随 desktop 保存；面板与浮动窗口共用同一份会话。[说明](Doc/PANE_TAB_EMBEDDING.md)
 
 Linux 启动、Bridge 和 QML 已在真实 Linux Python/Qt 环境运行自动回归，Windows 相关回归也已通过；Rocky 9 容器 CI 已加入，真实 Rocky 9 + Houdini 的显卡、许可证和场景操作仍待实机验收。
 

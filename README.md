@@ -4,7 +4,7 @@
 
 A standalone AI assistant for SideFX Houdini, featuring autonomous multi-turn tool calling, **Meshy AI 3D generation** (text/image→3D, concept galleries, image-to-image editing, retexture, remesh), a **cloud asset library**, web search, VEX/Python code execution, Plan mode for complex tasks, a brain-inspired long-term memory system, a plugin hook system for community extensions, user-defined context rules, and a modern **QML/Qt Quick** desktop UI with bilingual support.
 
-As of **v2.0**, Houdini Agent runs as a **standalone desktop app** that connects to a running Houdini over a lightweight **bridge**. This branch uses a Codex-style QML/Qt Quick desktop layout and retains an embedded Houdini entry point.
+As of **v2.0**, Houdini Agent runs as a **standalone desktop app** that connects to a running Houdini over a lightweight **bridge**. This branch uses a Codex-style QML/Qt Quick desktop layout and retains embedded Houdini entry points: a floating window, or a dockable Houdini pane tab.
 
 Built on the **OpenAI Function Calling** protocol, the agent can read node networks, create/modify/connect nodes, run VEX wrangles, generate and import 3D assets via Meshy, execute system shell commands, search the web, query local documentation, create structured execution plans, learn from past interactions, and be extended via plugins — all within an iterative agent loop. A centralized **ToolRegistry** unifies core tools, skills, and plugin tools with mode-based access control.
 
@@ -17,6 +17,7 @@ This branch includes upstream **v2.1.2**. Linux adaptation lives on **`codex/lin
 - **Desktop and chat**: resizable session sidebar, history navigation, unified settings, Houdini status control, user-message copying/timestamps, failed-message recovery, and automatic thinking collapse. [UI guide](#qmlqt-quick-ui)
 - **Serial message queue**: send follow-ups while a request runs; stopped, failed, or restored queues require manual continuation. Multiple chats do not concurrently edit one Houdini session.
 - **Providers and memory**: unified configuration, provider-level validation with persisted results, an explicit `save_memory` tool, and manual memory creation. [Memory guide](#long-term-memory)
+- **Dockable pane tab**: the integration package ships a Python Panel definition, so the chat can live in a real Houdini pane tab that docks, splits, and persists with the desktop; the pane and the floating window share one session. [Details](Doc/PANE_TAB_EMBEDDING.md)
 
 Automated launcher, Bridge and QML tests have run in a real Linux Python/Qt environment, with Windows regressions also passing. Rocky 9 container CI is included; real Rocky 9 + Houdini graphics, licensing and scene operations still require machine validation.
 

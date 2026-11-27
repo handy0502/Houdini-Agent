@@ -9,6 +9,8 @@ T.TextArea {
     implicitWidth: Theme.fs(120)
     implicitHeight: Math.max(contentHeight, hint.implicitHeight) + topPadding + bottomPadding
     padding: 6
+    activeFocusOnPress: true
+    focus: false
     leftPadding: 10
     color: Theme.text
     placeholderTextColor: Theme.textMute

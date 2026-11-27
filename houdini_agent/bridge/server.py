@@ -4,6 +4,7 @@
 import json
 import os
 import sys
+import socket
 import socketserver
 import threading
 import traceback
@@ -268,8 +269,16 @@ class _Handler(socketserver.StreamRequestHandler):
 
 
 class _Server(socketserver.ThreadingMixIn, socketserver.TCPServer):
-    allow_reuse_address = True
+    # Windows SO_REUSEADDR lets separate Houdini processes listen on the SAME
+    # port. Discovery then sees one session, and requests can reach either one.
+    # POSIX reuse only permits a quick restart after TIME_WAIT, so keep it there.
+    allow_reuse_address = os.name != "nt"
     daemon_threads = True
+
+    def server_bind(self):
+        if os.name == "nt":
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
 
 def _write_port_file(port):

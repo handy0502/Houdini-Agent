@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pythonPanelDocument>
+  <!-- Houdini Agent 的 Python Panel 定义。
+       放在 $HOUDINI_PATH/python_panels/ 下会被 Houdini 启动时自动加载：
+       集成包（houdini_agent/houdini_package）已经把这个目录加进 HOUDINI_PATH，
+       所以用户不需要手动 installFile。
+
+       面板本体在 houdini_agent/ui_qml/pane.py；这里只负责定位仓库、把
+       onCreateInterface() 转发过去，并把面板生命周期钩子接上。 -->
+  <interface name="hagent_chat" label="Houdini Agent" icon="MISC_robot">
+    <script><![CDATA[
+import os
+import sys
+import traceback
+
+INTERFACE = "hagent_chat"
+_widget = None
+
+
+def _repo_root():
+    """定位含 houdini_agent/ 的代码根目录（源码树或 PyInstaller bridge_payload）。"""
+    root = os.environ.get("HAGENT_REPO", "").strip()
+    if root and os.path.isdir(os.path.join(root, "houdini_agent")):
+        return os.path.abspath(root)
+    # 兜底：从本 .pypanel 的位置反推
+    #   <root>/houdini_agent/houdini_package/python_panels/HoudiniAgent.pypanel
+    try:
+        import hou
+        iface = hou.pypanel.interfaceByName(INTERFACE)
+        path = os.path.abspath(iface.filePath()) if iface is not None else ""
+    except Exception:
+        path = ""
+    if path:
+        root = path
+        for _ in range(4):
+            root = os.path.dirname(root)
+        if os.path.isdir(os.path.join(root, "houdini_agent")):
+            return root
+    return ""
+
+
+def _error_widget(message):
+    """启动失败时把 traceback 显示在面板里，而不是留一块空白。"""
+    try:
+        from houdini_agent.qt_compat import QtWidgets
+    except Exception:
+        try:
+            from PySide6 import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
+    import hou
+    hou.ui.setStatusMessage("Houdini Agent 面板加载失败", severity=hou.severityType.Error)
+    box = QtWidgets.QPlainTextEdit()
+    box.setReadOnly(True)
+    box.setPlainText(message)
+    return box
+
+
+def onCreateInterface():
+    global _widget
+    root = _repo_root()
+    if root and root not in sys.path:
+        sys.path.insert(0, root)
+    try:
+        from houdini_agent.ui_qml import pane
+        pane_tab = kwargs.get("paneTab") if "kwargs" in globals() else None
+        _widget = pane.create_widget(pane_tab)
+    except Exception:
+        detail = traceback.format_exc()
+        print("[Houdini Agent] panel init failed:\n" + detail)
+        _widget = _error_widget(detail)
+    return _widget
+
+
+def onDestroyInterface():
+    global _widget
+    try:
+        from houdini_agent.ui_qml import pane
+        pane.destroy_widget(_widget)
+    except Exception:
+        pass
+    _widget = None
+
+
+def onActivateInterface():
+    try:
+        from houdini_agent.ui_qml import pane
+        pane.activate(_widget)
+    except Exception:
+        pass
+
+
+def onDeactivateInterface():
+    try:
+        from houdini_agent.ui_qml import pane
+        pane.deactivate(_widget)
+    except Exception:
+        pass
+]]>
+    </script>
+    <includeInPaneTabMenu menu_position="120" create_separator="false"/>
+    <includeInToolbarMenu menu_position="120" create_separator="false"/>
+    <help>Houdini Agent：在 Houdini 面板 Tab 里直接对话，Agent 可以读写当前场景。
+Shelf 或脚本里用 houdini_agent.ui_qml.pane.open_pane_tab() 也能打开。</help>
+  </interface>
+</pythonPanelDocument>

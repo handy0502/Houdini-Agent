@@ -32,6 +32,12 @@ Rectangle {
     function loc(s) { return controller ? (controller.lang, controller.tr(s)) : s }
     function label(zh, en) { return controller && controller.lang === "en" ? en : zh }
     function focusInput() { inputArea.forceActiveFocus() }
+    function insertText(t) {
+        if (!inputArea || !t) return
+        var pos = inputArea.cursorPosition
+        inputArea.insert(pos, t)
+        inputArea.cursorPosition = pos + t.length
+    }
     function openMenu(item, menu) {
         var p = item.mapToItem(inputRow, 0, 0)
         menu.maximumHeight = Math.max(100, inputRow.mapToItem(null, 0, 0).y - 12)

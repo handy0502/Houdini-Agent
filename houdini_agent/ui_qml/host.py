@@ -97,6 +97,57 @@ class _FrameIncubator(_QQmlIncubationController):
             self._timer.stop()
 
 
+def create_native_view(controller=None, model=None):
+    """Build a top-level QQuickView (native QWindow) hosting the same QML.
+
+    Houdini 的 pane tab 里，QQuickWidget 没有自己的原生窗口，键盘事件常常走不到它
+    （见 pane.log 里“无 key code、qquickwidget focused 一直在闪”）。QQuickView 有独立
+    原生窗口，配合 QWidget.createWindowContainer 嵌进 pane 后，点击就会激活该窗口，
+    键盘由操作系统直接送达 —— 这正是社区在 Houdini Python Panel 里跑 QML 的推荐姿势。
+    """
+    register_fonts()
+    if model is None:
+        model = ChatModel()
+    if controller is None:
+        controller = Controller(model)
+
+    try:
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QColor
+        from PySide6.QtQuick import QQuickView
+    except ImportError:
+        from PySide2.QtCore import QUrl
+        from PySide2.QtGui import QColor
+        from PySide2.QtQuick import QQuickView
+
+    view = QQuickView()
+    view.setResizeMode(QQuickView.SizeRootObjectToView)
+    view.setColor(QColor("#0d0d0d"))
+    view.engine().addImportPath(str(QML_DIR))
+    ctx = view.rootContext()
+    ctx.setContextProperty("chatModel", model)
+    ctx.setContextProperty("controller", controller)
+    view.setSource(QUrl.fromLocalFile(str(MAIN_QML)))
+
+    root = view.rootObject()
+    if root is not None:
+        try:
+            view.setColor(root.property("color"))
+
+            def sync_color():
+                try:
+                    view.setColor(root.property("color"))
+                except Exception:
+                    pass
+            root.colorChanged.connect(sync_color)
+        except Exception as exc:
+            print("[host] native color sync failed:", exc)
+
+    view._controller = controller
+    view._model = model
+    return view
+
+
 def create_view(parent=None, controller=None, model=None):
     """Build the QQuickWidget. Returns the widget (with ._controller/._model)."""
     register_fonts()

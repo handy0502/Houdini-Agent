@@ -24,6 +24,11 @@ Popup {
     width: Math.min(Math.round(720 * Theme.scale), parent ? parent.width - 18 : 720)
     height: Math.min(Math.round(560 * Theme.scale), parent ? parent.height - 18 : 560)
     padding: 0
+    // 弹窗尺寸是固定的：内容项必须跟着弹窗走，不能反过来被内容撑大。否则页面里
+    // ScrollView 的 contentHeight 会经由 contentItem.implicitHeight 回到弹窗尺寸，
+    // 形成 binding loop（页面内容的隐式高度 → 弹窗 → 页面可用高度 → contentHeight）。
+    contentWidth: availableWidth
+    contentHeight: availableHeight
     modal: true
     focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -271,7 +276,9 @@ Popup {
                 anchors.margins: Theme.sp(10)
                 clip: true
                 contentWidth: availableWidth
+                contentImplicitHeight: navColumn.implicitHeight
                 ColumnLayout {
+                    id: navColumn
                     width: navigationScroll.availableWidth
                     spacing: Theme.sp(2)
                     Repeater {
@@ -379,7 +386,10 @@ Popup {
                     visible: !bodyArea.isMgmt && !bodyArea.isProviders
                     clip: true
                     contentWidth: availableWidth
+                    // 内容随分区切换/字段增减而变高，ScrollView 不会自己重新测量
+                    contentImplicitHeight: pageContent.implicitHeight
                     Item {
+                        id: pageContent
                         width: scroll.availableWidth
                         implicitHeight: secCol.implicitHeight + Theme.panelPadding * 2
                         ColumnLayout {
