@@ -1,19 +1,32 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 from pathlib import Path
+import os
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_submodules
 
 
 block_cipher = None
-ROOT = Path(SPECPATH).resolve()
+ROOT = Path(SPECPATH).resolve().parent
 
 
 def datas_for(path, dest=None):
     src = ROOT / path
     if not src.exists():
         return []
-    return [(str(src), dest or path.replace("\\", "/"))]
+    target = Path(dest or path.replace("\\", "/"))
+    if src.is_file():
+        return [(str(src), str(target))]
+    # Ship source/resources for Houdini's Bridge, without interpreter-specific
+    # bytecode or caches created while developing/running this checkout.
+    data = []
+    for directory, names, files in os.walk(src):
+        names[:] = sorted(n for n in names if n not in {"__pycache__", ".git", ".pytest_cache"})
+        relative = Path(directory).relative_to(src)
+        for name in sorted(files):
+            if Path(name).suffix.lower() not in {".pyc", ".pyo"}:
+                data.append((str(Path(directory) / name), str(target / relative)))
+    return data
 
 
 datas = []
@@ -25,7 +38,7 @@ datas += datas_for("config/plugins.json", "config")
 datas += datas_for("config/user_rules.json", "config")
 datas += datas_for("rules", "rules")
 datas += datas_for("plugins", "plugins")
-datas += datas_for("trainData", "trainData")
+# Training exports are per-user output and are created on demand at runtime.
 datas += datas_for("VERSION", ".")
 # Houdini 侧从 bridge_payload 加载代码；没有这份 VERSION，那里的更新检查会读到 0.0.0，
 # 永远提示"发现新版本"。
@@ -43,10 +56,15 @@ datas += datas_for("houdini_agent/utils/mcp/fx_commands.json", "houdini_agent/ut
 # meshy 动作库目录：app 侧由冻结模块按 __file__ 相对路径加载，必须放到顶层 meshy 包路径下
 # （bridge_payload 那份只供 Houdini 侧；此处与 node_inputs.json 同理）。
 datas += datas_for("houdini_agent/meshy/animation_library.json", "houdini_agent/meshy")
-datas += collect_data_files("PySide6", includes=["Qt/qml/**", "Qt/plugins/**", "Qt/translations/**"])
+# The QtQml/QtQuick hooks collect their runtime QML/plugins and DLL dependencies.
+# Do not independently collect the whole Qt tree a second time.
 
 hiddenimports = []
-hiddenimports += collect_submodules("PySide6")
+hiddenimports += [
+    "PySide6.QtCore", "PySide6.QtGui", "PySide6.QtWidgets", "PySide6.QtNetwork",
+    "PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtQuickWidgets",
+    "PySide6.QtOpenGL", "PySide6.QtOpenGLWidgets", "PySide6.QtSvg",
+]
 hiddenimports += collect_submodules("houdini_agent")
 hiddenimports += [
     "houdini_agent.ui_qml.external_app",
@@ -77,7 +95,7 @@ hiddenimports = [h for h in hiddenimports if h not in qt_excludes]
 
 
 a = Analysis(
-    ["launcher.py"],
+    [str(ROOT / "launcher.py")],
     pathex=[str(ROOT)],
     binaries=[],
     datas=datas,
@@ -91,7 +109,7 @@ a = Analysis(
 )
 
 # 二次兜底：从最终产物里物理剔除未用 Qt 模块的 DLL / 资源 / qml / 语言包。
-# （collect_data_files 的 Qt/qml|plugins|translations 通配会把所有模块拉进来，这里按名字过滤掉。）
+# （QtQml hook 也会收集可选 QML 模块，这里按名字过滤掉已有的未使用模块。）
 _strip_substr = (
     "webengine", "qtwebengine",
     "qt6multimedia", "multimediawidgets", "spatialaudio",

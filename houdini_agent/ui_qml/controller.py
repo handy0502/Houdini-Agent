@@ -2875,6 +2875,9 @@ class Controller(QObject):
             self._info("导出对话", "导出失败：%s" % e)
 
     def _set_update(self, info, state="available"):
+        from houdini_agent.utils.updater import supports_installer_updates
+        if not supports_installer_updates():
+            info = None
         self._update_info = info
         self._update_state = state if info else ""
         self.updateAvailableChanged.emit()
@@ -2891,6 +2894,10 @@ class Controller(QObject):
 
     @Slot()
     def silentUpdateCheck(self):
+        from houdini_agent.utils.updater import supports_installer_updates
+        if not supports_installer_updates():
+            self._set_update(None)
+            return
         def work():
             try:
                 from houdini_agent.utils.updater import check_update
@@ -2904,16 +2911,13 @@ class Controller(QObject):
     @Slot()
     def startUpdate(self):
         """一键更新：下载新版安装包 → 拉起静默安装 → 退出应用（装完自动重启）。
-        仅打包 exe 可用；源码运行没有可覆盖的安装，引导去官网。"""
-        if self._update_state in ("downloading", "waiting", "installing"):
+        仅打包 exe 可用；源码运行通过原仓库更新。"""
+        from houdini_agent.utils.updater import supports_installer_updates, source_update_notice
+        if not supports_installer_updates():
+            self._set_update(None)
+            self._info("检查更新", source_update_notice(self._lang))
             return
-        if not getattr(sys, "frozen", False):
-            try:
-                import webbrowser
-                webbrowser.open("https://houdini-agent.com")
-            except Exception:
-                pass
-            self.toast.emit("源码运行无法就地更新，请 git pull 或从官网安装")
+        if self._update_state in ("downloading", "waiting", "installing"):
             return
         self._update_state = "downloading"
         self._update_progress = 0
@@ -3276,6 +3280,11 @@ class Controller(QObject):
             pass
 
     def _check_update(self):
+        from houdini_agent.utils.updater import supports_installer_updates, source_update_notice
+        if not supports_installer_updates():
+            self._set_update(None)
+            self._info("检查更新", source_update_notice(self._lang))
+            return
         self.toast.emit("正在检查更新…")
         def work():
             try:

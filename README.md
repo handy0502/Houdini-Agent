@@ -259,8 +259,8 @@ Houdini-Agent/
 ├── requirements-linux.txt           # Standalone Linux Python/Qt dependencies
 ├── README.md / README_CN.md
 ├── VERSION                          # Semantic version file (e.g. 2.0.0)
-├── HoudiniAgent.spec                # PyInstaller build spec (standalone app)
-├── build_installer.ps1              # Inno Setup installer build
+├── Houdini Agent.bat               # Windows double-click launcher
+├── installer/                       # PyInstaller spec, build and release scripts
 ├── lib/                             # Bundled dependencies (requests, urllib3, certifi, tiktoken, …)
 ├── assets/                          # App icon (houdini-agent.ico) and brand assets
 ├── config/                          # Runtime config (auto-created, gitignored)
@@ -359,7 +359,7 @@ Houdini-Agent/
 
 Houdini Agent is now a **standalone desktop app** that connects to a running Houdini over a **bridge** (it no longer runs inside the Houdini process).
 
-1. Upstream [GitHub Releases](https://github.com/Kazama-Suichiku/Houdini-Agent/releases/latest) provides the original Windows installer. It does not include this fork's UI, queue, memory or Linux changes. Use this branch's source, or build it on Windows with `build_houdini_agent_exe.ps1`, for the fork's features.
+1. Upstream [GitHub Releases](https://github.com/Kazama-Suichiku/Houdini-Agent/releases/latest) provides the original Windows installer. It does not include this fork's UI, queue, memory or Linux changes. Use this branch's source, or build it on Windows with `installer/build_houdini_agent_exe.ps1`, for the fork's features.
 2. Agent discovers Houdini 19.5+ and installs its **Bridge package**. Starting Agent never launches Houdini automatically; a ready Bridge is connected automatically.
 3. Use the top-right **Houdini** status control to connect/switch existing Bridge sessions or launch a selected version. After the first package installation, save and restart any Houdini that was already open without Bridge.
 4. Open the sidebar gear → **Settings → Models & Provider → Configure**. Enter a key or sign into a subscription provider, configure models and validate. Return to the list, hover and click Use, then select a model in the composer.
@@ -373,7 +373,18 @@ All `hou.*` calls run on Houdini's main thread over the bridge, keeping things t
 > import launcher
 > launcher.show_tool()
 > ```
-> Or build the standalone app yourself with `build_houdini_agent_exe.ps1` (PyInstaller).
+> Or build the standalone app yourself with `installer/build_houdini_agent_exe.ps1` (PyInstaller).
+
+Source runs, including embedded Houdini panels, update through the current repository branch.
+They skip automatic installer-release checks; manual checks explain the source workflow.
+Packaged apps retain installer updates. The `VERSION` release label does not measure whether
+your Git branch is up to date.
+
+The Windows build uses a one-folder bundle, followed by a compressed Inno Setup installer.
+Qt bindings are collected explicitly; source bytecode caches and personal training exports
+are excluded. QML, fonts and the embedded Bridge/panel resources are retained. Use a clean
+build environment to avoid collecting optional machine-learning dependencies from your
+development environment. Local source users can simply launch `Houdini Agent.bat`.
 
 ### Linux standalone (Rocky Linux 9)
 

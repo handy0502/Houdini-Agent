@@ -110,25 +110,33 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
             update_button = find('updateButton')
             assert not update_button.isVisible()
             chat_height = find('chatViewport').height()
-            controller._set_update('New version fixture')
+            controller._set_update('Release ignored in source mode')
             QTest.qWait(30)
-            assert update_button.isVisible() and update_button.isEnabled()
-            update_point = update_button.mapToScene(QPointF(0, 0))
-            assert update_point.x() + update_button.width() <= gear_point.x()
-            assert abs(update_point.y() - gear_point.y()) < 1
-            assert abs(update_button.height() - settings_gear.height()) < 1
-            assert abs(find('chatViewport').height() - chat_height) < 1
-            with patch.object(controller, 'startUpdate') as start_update:
+            assert not update_button.isVisible() and controller.updateState == ''
+            with patch('houdini_agent.utils.updater.supports_installer_updates', return_value=True):
+                controller._set_update('New version fixture')
+                QTest.qWait(30)
+                assert update_button.isVisible() and update_button.isEnabled()
+                assert update_button.property('icon') == 'arrowUp' and update_button.property('circular')
+                assert update_button.property('color').alpha() == 0
+                update_point = update_button.mapToScene(QPointF(0, 0))
+                assert update_point.x() + update_button.width() <= gear_point.x()
+                assert abs(update_point.y() - gear_point.y()) < 1
+                assert abs(update_button.height() - settings_gear.height()) < 1
+                assert abs(update_button.width() - settings_gear.width()) < 1
+                assert abs(update_button.width() - update_button.height()) < 1
+                assert abs(find('chatViewport').height() - chat_height) < 1
+                with patch.object(controller, 'startUpdate') as start_update:
+                    click(update_button)
+                    start_update.assert_called_once()
+                controller._on_update_state('downloading', 42, '')
+                QTest.qWait(30)
+                assert not update_button.isEnabled() and '42%' in update_button.property('tooltip')
+                controller._set_update('Waiting fixture', state='waiting')
+                QTest.qWait(30)
+                assert update_button.isEnabled()
                 click(update_button)
-                start_update.assert_called_once()
-            controller._on_update_state('downloading', 42, '')
-            QTest.qWait(30)
-            assert not update_button.isEnabled() and '42%' in update_button.property('text')
-            controller._set_update('Waiting fixture', state='waiting')
-            QTest.qWait(30)
-            assert update_button.isEnabled()
-            click(update_button)
-            assert controller.updateState == '' and not update_button.isVisible()
+                assert controller.updateState == '' and not update_button.isVisible()
             # Startup stays in chat. One compact header menu owns discovering,
             # connecting to, switching, and launching Houdini sessions.
             from houdini_agent.ui_qml import external_app as external

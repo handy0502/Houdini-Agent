@@ -4,7 +4,8 @@ Houdini Agent - 自动更新模块
 
 检查新版本：优先读官网的版本清单 latest.json（国内可访问、无 API 限流，且与官网
 安装包同步发布），失败再退回 GitHub Releases API。打包版下载新安装包并校验
-大小 / sha256 后静默安装；源码模式（Houdini 内旧界面）下载源码覆盖。
+大小 / sha256 后静默安装。源码界面通过原仓库更新，不参与安装包提示；
+保留旧源码覆盖接口供兼容调用。
 
 线程安全：check / download / apply 均可在后台线程调用，
 UI 回调通过 Qt Signal 回到主线程。
@@ -76,6 +77,19 @@ _PRESERVE_PATHS = frozenset({
 # ==========================================================
 # 版本工具
 # ==========================================================
+
+def supports_installer_updates() -> bool:
+    """Release installers update a frozen app, never a source tree or Houdini panel."""
+    return bool(getattr(sys, "frozen", False))
+
+
+def source_update_notice(lang="zh") -> str:
+    if lang == "en":
+        return ("Running from source. Update the current branch in your repository, then restart Houdini Agent.\n\n"
+                "In-app installer updates apply to packaged apps. Release version numbers do not indicate whether this Git branch is up to date.")
+    return ("当前为源码运行，请在原仓库中更新当前分支，然后重启 Houdini Agent。\n\n"
+            "应用内安装包更新仅适用于独立 EXE；Release 版本号不能用于判断当前 Git 分支是否已更新。")
+
 
 def get_local_version() -> str:
     """读取本地 VERSION 文件，返回版本字符串，失败返回 '0.0.0'。

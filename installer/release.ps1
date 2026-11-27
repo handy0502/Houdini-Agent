@@ -1,8 +1,8 @@
 ﻿# ============================================================
 # Houdini Agent — 一键发版：构建安装程序 + 上传到网站下载目录
-#   powershell -ExecutionPolicy Bypass -File release.ps1            # 构建并上传
-#   powershell -ExecutionPolicy Bypass -File release.ps1 -Clean     # 先清理再构建
-#   powershell -ExecutionPolicy Bypass -File release.ps1 -UploadOnly # 跳过构建，只传最新产物
+#   powershell -ExecutionPolicy Bypass -File installer/release.ps1            # 构建并上传
+#   powershell -ExecutionPolicy Bypass -File installer/release.ps1 -Clean     # 先清理再构建
+#   powershell -ExecutionPolicy Bypass -File installer/release.ps1 -UploadOnly # 跳过构建，只传最新产物
 # 密码运行时安全输入（不写文件、不进命令历史）。
 # 前置：Inno Setup 6 + pip install pyinstaller paramiko
 # ============================================================
@@ -12,13 +12,13 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
 # 1) 构建（除非 -UploadOnly）
 if (-not $UploadOnly) {
     Write-Host "==> 构建安装程序..." -ForegroundColor Cyan
-    & (Join-Path $Root "build_installer.ps1") -Clean:$Clean
+    & (Join-Path $PSScriptRoot "build_installer.ps1") -Clean:$Clean
     if ($LASTEXITCODE -ne 0) { throw "构建失败" }
 }
 

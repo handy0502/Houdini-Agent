@@ -3,7 +3,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$RepoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$RepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $SideFxRoot = Join-Path $env:ProgramFiles "Side Effects Software"
 
 $Installs = Get-ChildItem -LiteralPath $SideFxRoot -Directory -ErrorAction SilentlyContinue |
@@ -65,7 +65,7 @@ try {
     # This installation supplies Python/Qt only. The Agent's connection menu
     # owns starting Houdini after the user chooses a launch action.
     # pythonw has no console; hiding its window also hides the Agent GUI.
-    Start-Process -FilePath $PythonwExe -ArgumentList @((Join-Path $RepoRoot "launcher.py")) -WorkingDirectory $RepoRoot
+    Start-Process -FilePath $PythonwExe -ArgumentList @('"' + (Join-Path $RepoRoot "launcher.py") + '"') -WorkingDirectory $RepoRoot
     Write-Host "Started Houdini Agent using the Python/Qt runtime from Houdini $($Install.Version)."
     Write-Host "Bridge endpoint: 127.0.0.1:45172 (auto-fallback through 45192)."
 } finally {

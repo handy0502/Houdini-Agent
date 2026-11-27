@@ -3,18 +3,22 @@
 #   1) PyInstaller 打包 one-folder 到 dist\Houdini Agent
 #   2) Inno Setup 编译成单个 dist_installer\HoudiniAgent-Setup-<版本>.exe
 # 前置：pip install pyinstaller，并安装 Inno Setup 6（https://jrsoftware.org/isdl.php）
-# 用法：  powershell -ExecutionPolicy Bypass -File build_installer.ps1 [-Clean]
+# 用法：  powershell -ExecutionPolicy Bypass -File installer/build_installer.ps1 [-Clean]
 # ============================================================
 param([switch]$Clean)
 
 $ErrorActionPreference = "Stop"
-$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
 if ($Clean) {
     foreach ($d in @("build", "dist")) {
         $p = Join-Path $Root $d
-        if (Test-Path $p) { Remove-Item -Recurse -Force $p }
+        if (Test-Path -LiteralPath $p) {
+            $resolvedBuild = (Resolve-Path -LiteralPath $p).Path
+            if ($resolvedBuild -ne $p -or -not $resolvedBuild.StartsWith($Root + '\')) { throw "Unsafe build directory: $resolvedBuild" }
+            Remove-Item -LiteralPath $resolvedBuild -Recurse -Force
+        }
     }
 }
 
@@ -49,7 +53,7 @@ function Sign-File([string]$Path) {
 }
 
 Write-Host "==> [1/2] PyInstaller 打包..." -ForegroundColor Cyan
-python -m PyInstaller --noconfirm (Join-Path $Root "HoudiniAgent.spec")
+python -m PyInstaller --noconfirm (Join-Path $PSScriptRoot "HoudiniAgent.spec")
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller 失败 (exit $LASTEXITCODE)" }
 
 $App = Join-Path $Root "dist\Houdini Agent\Houdini Agent.exe"

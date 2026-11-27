@@ -1,6 +1,6 @@
 ; ============================================================
 ; Houdini Agent — Inno Setup installer script
-; 用 build_installer.ps1 构建（先 PyInstaller，再 ISCC 编译本脚本）
+; 用 installer/build_installer.ps1 构建（先 PyInstaller，再 ISCC 编译本脚本）
 ; 需要 Inno Setup 6：https://jrsoftware.org/isdl.php
 ; 产物：dist_installer\HoudiniAgent-Setup-<版本>.exe（单个安装程序）
 ; ============================================================

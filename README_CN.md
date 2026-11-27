@@ -254,8 +254,8 @@ Houdini-Agent/
 ├── requirements-linux.txt           # Linux 独立 Python/Qt 依赖
 ├── README.md / README_CN.md         # 中英文文档
 ├── VERSION                          # 语义版本文件（如 2.0.0）
-├── HoudiniAgent.spec                # PyInstaller 构建配置（独立程序）
-├── build_installer.ps1              # Inno Setup 安装包构建
+├── Houdini Agent.bat               # Windows 双击启动
+├── installer/                       # PyInstaller 配置、构建与发版脚本
 ├── lib/                             # 内置依赖库（requests、urllib3、certifi、tiktoken 等）
 ├── assets/                          # 应用图标（houdini-agent.ico）与品牌资源
 ├── config/                          # 运行时配置（自动创建，已 gitignore）
@@ -354,10 +354,18 @@ Houdini-Agent/
 
 Houdini Agent 现在是**独立桌面程序**，通过 **Bridge** 连接正在运行的 Houdini（不再在 Houdini 进程内运行）。
 
-1. Windows 可从上游 [GitHub Releases](https://github.com/Kazama-Suichiku/Houdini-Agent/releases/latest) 获取原版安装包；它不包含本 fork 的 UI、队列、记忆与 Linux 改动。使用本分支功能需运行本分支源码，或在 Windows 用 `build_houdini_agent_exe.ps1` 自行构建。
+1. Windows 可从上游 [GitHub Releases](https://github.com/Kazama-Suichiku/Houdini-Agent/releases/latest) 获取原版安装包；它不包含本 fork 的 UI、队列、记忆与 Linux 改动。使用本分支功能需运行本分支源码，或在 Windows 用 `installer/build_houdini_agent_exe.ps1` 自行构建。
 2. Agent 自动探测本机 Houdini（19.5+），安装 **Bridge package**。启动 Agent 不会自动拉起 Houdini；就绪的 Bridge 会自动连接。
 3. 点击右上角「Houdini」状态按钮，可连接或切换已有 Bridge 会话、选择版本启动新会话。圆点和文字绿色表示已连接，红色表示未连接，未连接时带亮度呼吸效果；列表标题旁的叉号用于断开，刷新图标重新发现会话。
 4. 从侧栏右下角齿轮进入「**设置 → 模型与 Provider → 配置**」，填写 Key 或登录订阅渠道、配置模型并验证。回到供应商列表，悬浮点击「使用」，再到输入框右下角选择模型。
+
+**Windows 源码一键启动**：直接双击项目根目录的 `Houdini Agent.bat`，无需打开命令行。它自动选择已安装的兼容 Houdini，复用其 Python/Qt 环境启动 Agent，不会自动打开 Houdini。可给该 BAT 创建桌面快捷方式；启动出错时窗口会保留错误提示。项目目录包含空格也可使用。
+
+如需指定运行环境版本，可在 PowerShell 运行 `& ".\Houdini Agent.bat" -HoudiniVersion 22.0`。这只选择 Agent 使用的 Python/Qt，不限制之后连接哪个 Houdini 会话。
+
+**源码更新**：通过当前仓库更新所用分支后重启 Agent。源码运行（含 Houdini 内嵌面板）不自动检查或提示安装包更新；手动“检查更新”会显示源码更新说明。独立 EXE 保留官网清单/GitHub Release 检查和安装包更新。`VERSION` 是 Release 标号，不代表本分支的 Git 提交新旧。
+
+**安装包体积**：本机使用上述 BAT 启动即可，无需打包。分发时 `installer/HoudiniAgent.spec` 使用目录模式，EXE 与 Python/Qt 依赖分开放置，再由 Inno Setup 压缩成安装程序。构建配置仅显式收集使用的 Qt 模块，并排除源码字节码缓存和个人 `trainData`；保留 QML、字体、Bridge 与内嵌面板资源。建议在独立的构建环境中安装所需依赖，避免开发环境里可选的大型机器学习包被自动收集。实际体积以构建结果为准。
 
 所有 `hou.*` 调用都经 Bridge 在 Houdini 主线程执行，保证线程安全。
 
@@ -368,7 +376,7 @@ Houdini Agent 现在是**独立桌面程序**，通过 **Bridge** 连接正在�
 > import launcher
 > launcher.show_tool()
 > ```
-> 或用 `build_houdini_agent_exe.ps1` 自行构建独立程序（PyInstaller）。
+> 或用 `installer/build_houdini_agent_exe.ps1` 自行构建独立程序（PyInstaller）。
 
 ### Rocky Linux 9 独立启动
 

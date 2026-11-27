@@ -3,14 +3,18 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Spec = Join-Path $Root "HoudiniAgent.spec"
+$Root = Split-Path -Parent $PSScriptRoot
+$Spec = Join-Path $PSScriptRoot "HoudiniAgent.spec"
 $Stamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $DistRoot = Join-Path $Root ("dist_builds\" + $Stamp)
 
 if ($Clean) {
     $build = Join-Path $Root "build"
-    if (Test-Path $build) { Remove-Item -Recurse -Force $build }
+    if (Test-Path -LiteralPath $build) {
+        $resolvedBuild = (Resolve-Path -LiteralPath $build).Path
+        if ($resolvedBuild -ne $build -or -not $resolvedBuild.StartsWith($Root + '\')) { throw "Unsafe build directory: $resolvedBuild" }
+        Remove-Item -LiteralPath $resolvedBuild -Recurse -Force
+    }
 }
 
 Set-Location $Root

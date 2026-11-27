@@ -133,36 +133,19 @@ Rectangle {
             Layout.rightMargin: Theme.sp(6)
             spacing: Theme.sp(6)
             Item { Layout.fillWidth: true }
-            Button {
+            IconButton {
                 id: updateButton
                 objectName: "updateButton"
+                icon: "arrowUp"; circular: true
                 readonly property string updateState: controller ? controller.updateState : ""
                 visible: !!controller && controller.updateText.length > 0
                          && updateState !== "" && updateState !== "idle"
                 enabled: updateState === "available" || updateState === "waiting"
-                text: updateState === "downloading" ? sidebar.loc("下载 ", "") + (controller ? controller.updateProgress : 0) + "%"
+                readonly property string statusLabel: updateState === "downloading" ? sidebar.loc("下载 ", "Downloading ") + (controller ? controller.updateProgress : 0) + "%"
                     : updateState === "waiting" ? sidebar.loc("取消更新", "Cancel")
                     : updateState === "installing" ? sidebar.loc("安装中", "Installing")
                     : sidebar.loc("更新", "Update")
-                implicitWidth: contentItem.implicitWidth + Theme.sp(22)
-                implicitHeight: Theme.controlHeight
-                font.family: Theme.fontBody
-                font.pixelSize: Theme.fSm
-                Accessible.name: text
-                ToolTip.visible: hovered
-                ToolTip.text: controller ? controller.updateText : ""
-                ToolTip.delay: 350
-                background: Rectangle {
-                    radius: height / 2
-                    color: updateButton.hovered ? Theme.surface2 : Theme.surface
-                }
-                contentItem: Text {
-                    text: updateButton.text
-                    font: updateButton.font
-                    color: updateButton.enabled ? Theme.accent : Theme.textMute
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
+                tooltip: statusLabel + (controller && controller.updateText ? "\n" + controller.updateText : "")
                 onClicked: {
                     if (!controller) return
                     if (updateState === "waiting") controller.dismissUpdate()

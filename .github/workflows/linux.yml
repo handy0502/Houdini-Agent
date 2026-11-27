@@ -38,7 +38,9 @@ jobs:
           tests/test_connection_doctor.py tests/test_external_connection.py
           tests/test_bridge_protocol.py tests/test_bridge_sessions.py tests/test_memory_tools.py
           tests/test_tool_registry.py tests/test_qml_shell.py
+          tests/test_packaging_spec.py
           tests/test_pane_panel.py tests/test_panel_scroll.py
           tests/test_message_queue.py tests/test_update_check.py
+          tests/test_update_runtime.py
           tests/test_task_runtime.py tests/test_task_sessions.py tests/test_agent_loop_guards.py
           tests/test_scene_verification.py tests/test_effect_library.py tests/test_effect_controller.py
