@@ -96,6 +96,12 @@ The **QML/Qt Quick** front-end (`houdini_agent/ui_qml/`) receives streamed state
 
 ## Available Tools (50+)
 
+The effect workflow adds scene facts, bounded continuation, measurable acceptance checks,
+verified local recipes, semantic float controls, independent parameter variants and HDA
+export from a copy. Session hover tips identify the HIP name and path. See the
+[workflow and real HIP benchmark guide](Doc/EFFECT_WORKFLOW.md) for usage, budgets and
+validation limits. Structural or sampled checks do not establish full simulation or visual quality.
+
 ### Node Operations
 
 | Tool | Description |

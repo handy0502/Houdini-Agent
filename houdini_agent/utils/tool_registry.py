@@ -43,7 +43,7 @@ _ASK_TOOLS = frozenset({
     'get_network_structure', 'get_node_parameters', 'list_children',
     'read_selection', 'search_node_types', 'semantic_search_nodes',
     'find_nodes_by_param', 'get_node_inputs', 'check_errors',
-    'verify_and_summarize', 'web_search', 'fetch_webpage',
+    'verify_and_summarize', 'get_scene_facts', 'search_effect_cases', 'web_search', 'fetch_webpage',
     'search_local_doc', 'get_houdini_node_doc', 'list_skills',
     'add_todo', 'update_todo', 'get_node_positions',
     'list_network_boxes', 'perf_start_profile', 'perf_stop_and_report',
@@ -54,7 +54,7 @@ _PLAN_PLANNING_TOOLS = frozenset({
     'get_network_structure', 'get_node_parameters', 'list_children',
     'read_selection', 'search_node_types', 'semantic_search_nodes',
     'find_nodes_by_param', 'get_node_inputs', 'check_errors',
-    'verify_and_summarize', 'web_search', 'fetch_webpage',
+    'verify_and_summarize', 'get_scene_facts', 'search_effect_cases', 'web_search', 'fetch_webpage',
     'search_local_doc', 'get_houdini_node_doc', 'list_skills',
     'add_todo', 'update_todo', 'get_node_positions',
     'list_network_boxes', 'perf_start_profile', 'perf_stop_and_report',
@@ -66,7 +66,7 @@ _READONLY_TOOLS = frozenset({
     'get_network_structure', 'get_node_parameters', 'list_children',
     'read_selection', 'search_node_types', 'semantic_search_nodes',
     'find_nodes_by_param', 'get_node_inputs', 'check_errors',
-    'verify_and_summarize', 'web_search', 'fetch_webpage',
+    'verify_and_summarize', 'get_scene_facts', 'search_effect_cases', 'web_search', 'fetch_webpage',
     'search_local_doc', 'get_houdini_node_doc', 'list_skills',
     'get_node_positions', 'list_network_boxes',
     'perf_start_profile', 'perf_stop_and_report',
@@ -307,6 +307,7 @@ class ToolRegistry:
     # 工具按功能分组
     _INTENT_TOOL_GROUPS: Dict[str, Set[str]] = {
         'query': {
+            'get_scene_facts', 'search_effect_cases',
             'get_network_structure', 'get_node_parameters', 'list_children',
             'check_errors', 'read_selection', 'get_node_inputs',
             'get_node_positions', 'list_network_boxes',
@@ -319,6 +320,7 @@ class ToolRegistry:
             'connect_nodes', 'copy_node',
         },
         'modify': {
+            'create_effect_controls', 'create_effect_variants',
             'set_node_parameter', 'batch_set_parameters', 'set_display_flag',
         },
         'code': {
@@ -340,6 +342,7 @@ class ToolRegistry:
             'perf_start_profile', 'perf_stop_and_report',
         },
         'file': {
+            'save_effect_case', 'package_effect',
             'save_hip', 'undo_redo',
         },
         'plan': {

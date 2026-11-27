@@ -1208,6 +1208,13 @@ class HoudiniMCP(NetworkInspectMixin, NodeOpsMixin, ParamOpsMixin, ExecOpsMixin,
         "execute_python": "_tool_execute_python",
         "execute_shell": "_tool_execute_shell",
         "check_errors": "_tool_check_errors",
+        "verify_and_summarize": "_tool_verify_and_summarize",
+        "create_effect_controls": "_tool_create_effect_controls",
+        "create_effect_variants": "_tool_create_effect_variants",
+        "package_effect": "_tool_package_effect",
+        "get_scene_facts": "_tool_scene_facts",
+        "search_effect_cases": "_tool_search_effect_cases",
+        "save_effect_case": "_tool_save_effect_case",
         "search_local_doc": "_tool_search_local_doc",
         "get_houdini_node_doc": "_tool_get_houdini_node_doc",
         "get_node_inputs": "_tool_get_node_inputs",
@@ -1373,6 +1380,37 @@ class HoudiniMCP(NetworkInspectMixin, NodeOpsMixin, ParamOpsMixin, ExecOpsMixin,
     # ========================================
     # 长期记忆主动搜索
     # ========================================
+
+    def _tool_scene_facts(self, args):
+        from .effects import scene_facts
+        return scene_facts(self, args, hou)
+
+    def _tool_create_effect_controls(self, args):
+        from .effect_controls import create_controls
+        return create_controls(args, hou)
+
+    def _tool_package_effect(self, args):
+        from .effect_controls import package_effect
+        return package_effect(self, args, hou)
+
+    def _tool_create_effect_variants(self, args):
+        from .effect_controls import create_variants
+        return create_variants(self, args, hou)
+
+    def _tool_search_effect_cases(self, args):
+        from ..effect_library import EffectLibrary
+        import json
+        cases = EffectLibrary().search(str(args.get('query', '')), str(args.get('project', '')),
+                                       str(args.get('version', '')), args.get('limit', 3))
+        return {'success': True, 'cases': cases, 'result': json.dumps(cases, ensure_ascii=False)}
+
+    def _tool_save_effect_case(self, args):
+        from .effects import save_case
+        return save_case(self, args, hou)
+
+    def _tool_verify_and_summarize(self, args):
+        from .verification import verify
+        return verify(self, args, hou_module=hou)
 
     def _tool_search_memory(self, args: Dict[str, Any]) -> Dict[str, Any]:
         from ..memory_tools import search_memory

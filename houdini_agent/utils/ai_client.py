@@ -15,6 +15,7 @@ from urllib.parse import quote_plus
 
 from shared.common_utils import load_config, save_config
 from .memory_tools import SAVE_MEMORY_TOOL
+from .effect_schemas import CRITERIA, EFFECT_TOOLS
 
 # 强制使用本地 lib 目录中的依赖库
 _lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'lib')
@@ -642,7 +643,9 @@ HOUDINI_TOOLS = [
                     "expected_result": {
                         "type": "string",
                         "description": "期望的结果描述"
-                    }
+                    },
+                    "network_path": {"type": "string", "description": "要检查的网络绝对路径"},
+                    "criteria": CRITERIA
                 },
                 "required": ["check_items", "expected_result"]
             }
@@ -951,6 +954,8 @@ from .ai_client_agent import AIClientAgentMixin
 # ============================================================
 # AI 客户端
 # ============================================================
+
+HOUDINI_TOOLS.extend(EFFECT_TOOLS)
 
 class AIClient(AIClientContextMixin, AIClientProvidersMixin, AIClientStreamingMixin, AIClientAgentMixin):
     """AI 客户端，支持流式传输、Function Calling、联网搜索"""

@@ -115,7 +115,7 @@ def test_sessions_only_advertise_memory_tools_when_enabled(store, monkeypatch, s
     session = session_type.__new__(session_type)
     session.tools, session.history = schemas, []
     session._sys_think = session._sys_no_think = 'System'
-    session.client = SimpleNamespace(reset_stop=Mock(), agent_loop_auto=Mock(return_value={
+    session.client = SimpleNamespace(reset_stop=Mock(), _tool_executor=Mock(), set_tool_executor=Mock(), agent_loop_auto=Mock(return_value={
         'ok': True, 'final_content': 'OK', 'new_messages': []}))
     session.run('New conversation', 'offline', 'openai', 'Agent', {}, rag=False, memory=enabled)
     request = session.client.agent_loop_auto.call_args.kwargs

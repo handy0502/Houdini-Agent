@@ -71,7 +71,7 @@ PLAN_READONLY = {"get_network_structure", "get_node_parameters", "list_children"
                  "read_selection", "check_errors", "search_local_doc",
                  "get_houdini_node_doc", "web_search", "fetch_webpage",
                  "search_memory", "list_skills", "capture_viewport",
-                 "check_houdini_connection"}
+                 "check_houdini_connection", "verify_and_summarize", "get_scene_facts", "search_effect_cases"}
 
 try:
     from houdini_agent.utils.plan_manager import (
@@ -84,7 +84,8 @@ except Exception:
 CONFIRM_TOOLS = {"create_node", "create_nodes_batch", "create_wrangle_node", "delete_node",
                  "set_node_parameter", "batch_set_parameters", "connect_nodes", "copy_node",
                  "execute_python", "execute_shell", "save_hip", "run_skill",
-                 "repair_houdini_connection", "save_memory"}
+                 "repair_houdini_connection", "save_memory", "save_effect_case",
+                 "create_effect_controls", "create_effect_variants", "package_effect"}
 
 # Meshy 集成（自包含包，import 即自注册到 ToolRegistry）。
 # 网络工具在 app 侧后台线程执行；生成类工具消耗 credits，纳入确认门。
@@ -662,6 +663,7 @@ class Controller(QObject):
     # worker -> main thread: 检查到新版本，显示侧栏更新入口。必须走信号：在 Python 后台线程里
     # 调 QTimer.singleShot 回调永远不会执行（该线程没有事件循环），横幅因此从未出现过。
     _sigUpdateFound = Signal(str)
+    _sigTaskReport = Signal(object)
 
     def __init__(self, model, use_backend=False, parent=None):
         super().__init__(parent)
@@ -871,6 +873,7 @@ class Controller(QObject):
         self._sigCtxRefresh.connect(self.refreshContext)
         self._sigUpdateState.connect(self._on_update_state)
         self._sigUpdateFound.connect(self._set_update)
+        self._sigTaskReport.connect(self._ui_task_report)
 
         # coalesce UI flushes to ~25fps (avoids O(N^2) re-render on long runs)
         self._flush_timer = QTimer(self)
@@ -3981,7 +3984,7 @@ class Controller(QObject):
                         "outbox": s.get("outbox", []),
                         "outbox_paused": s.get("outbox_paused", False),
                         "plan_phase": s.get("plan_phase", "idle"),
-                        "usage": s.get("usage") or {}}
+                        "usage": s.get("usage") or {}, "task_report": s.get("task_report") or {}}
                 (self._cache_dir / ("session_%s.json" % s["id"])).write_text(
                     json.dumps(data, ensure_ascii=False, default=str), encoding="utf-8")
                 saved[s["id"]] = sig
@@ -3995,7 +3998,7 @@ class Controller(QObject):
         return (s.get("rows"), s.get("history"), s.get("title"),
                 s.get("provider", self._provider), s.get("model", self._model_name),
                 tuple(item["id"] for item in s.get("outbox", [])), s.get("outbox_paused", False),
-                s.get("plan_phase", "idle"))
+                s.get("plan_phase", "idle"), json.dumps(s.get('task_report') or {}, sort_keys=True))
 
     @Slot()
     def restore(self):
@@ -4018,7 +4021,8 @@ class Controller(QObject):
                                    "model": d.get("model", entry.get("model", self._model_name)),
                                    "outbox": d.get("outbox", []), "outbox_paused": True,
                                    "plan_phase": d.get("plan_phase", "idle"),
-                                   "usage": d.get("usage") if isinstance(d.get("usage"), dict) else {}})
+                                   "usage": d.get("usage") if isinstance(d.get("usage"), dict) else {},
+                                   "task_report": d.get("task_report") or {}})
             if loaded:
                 self._sessions = loaded
                 self._active = min(int(manifest.get("active", 0)), len(loaded) - 1)
@@ -4174,7 +4178,8 @@ class Controller(QObject):
         threading.Thread(
             target=self._worker,
             args=(user_text, self._model_name, prov_arg, self._mode, tools, max_iter,
-                  images, supports_vision, ctx_limit),
+                  images, supports_vision, ctx_limit,
+                  copy.deepcopy(self._plan_payload) if self._plan_phase == 'executing' else None),
             daemon=True,
         ).start()
 
@@ -4281,7 +4286,7 @@ class Controller(QObject):
 
     # ---- worker thread ----
     def _worker(self, text, model, provider, mode, tools, max_iter, images=None,
-                supports_vision=False, context_limit=None):
+                supports_vision=False, context_limit=None, plan=None):
         def cb_content(t):
             self._last_activity = time.monotonic()
             vis, thk = self._split(t)
@@ -4345,10 +4350,13 @@ class Controller(QObject):
                 think_tags=(self._sub_kind(provider) is None),
                 supports_vision=supports_vision,
                 tools=tools, max_iter=max_iter,
+                plan=plan,
                 images=images, rag=True, memory=self._memory_enabled,
                 tool_mode=({"Ask": "ask", "Plan": "plan_" + self._plan_phase}
                            .get(mode, "agent")),
             )
+            if isinstance(result, dict) and isinstance(result.get('task_report'), dict):
+                self._sigTaskReport.emit(result['task_report'])
             if isinstance(result, dict) and not result.get("ok", True):
                 err = str(result.get("error") or result.get("final_content") or "AI request failed")
                 if re.search(r'\b(?:401|403|429)\b', err):
@@ -4367,6 +4375,10 @@ class Controller(QObject):
             print(tb)
             self._log_external("Worker exception: %s\n%s" % (e, tb))
             self._sigDone.emit(str(e))
+
+    @Slot(object)
+    def _ui_task_report(self, report):
+        self._sessions[self._active]['task_report'] = copy.deepcopy(report)
 
     def _report_run_provider_status(self, state):
         config = getattr(self, '_run_provider_config', None)
@@ -4463,6 +4475,20 @@ class Controller(QObject):
             if tool_name == 'save_memory' and result.get('success'):
                 self.managementChanged.emit()
             return result
+        if tool_name == 'search_effect_cases':
+            from houdini_agent.utils.effect_library import EffectLibrary
+            cases = EffectLibrary().search(str(kwargs.get('query', '')), str(kwargs.get('project', '')),
+                                           str(kwargs.get('version', '')), kwargs.get('limit', 3))
+            return {'success': True, 'cases': cases, 'result': json.dumps(cases, ensure_ascii=False)}
+        if tool_name == 'save_effect_case':
+            # Keep standalone archives beside the app's search database, even
+            # when the Bridge package lives in a separate installed payload.
+            from houdini_agent.utils.effect_library import EffectLibrary
+            result = self._dispatch_scene_tool(tool_name, dict(kwargs, _prepare_only=True))
+            if not result.get('success'):
+                return result
+            saved = EffectLibrary().save(result['case_record'])
+            return {'success': True, 'case_id': saved['id'], 'result': 'Verified workflow saved: ' + saved['id']}
         # 连接诊断/修复：必须在 app 侧执行——连接坏了才需要它，绝不能走 bridge
         if tool_name in ("check_houdini_connection", "repair_houdini_connection"):
             return self._run_connection_tool(tool_name, kwargs)
@@ -4505,6 +4531,10 @@ class Controller(QObject):
                 except Exception:
                     pass
             return res
+        return self._dispatch_scene_tool(tool_name, kwargs)
+
+    def _dispatch_scene_tool(self, tool_name, kwargs):
+        """Preserve Bridge routing and embedded hou main-thread execution."""
         if getattr(self._session, "bridge", None) is not None:
             if getattr(self, "_houdini_connection", {}).get("paused"):
                 return {"success": False, "error": "Houdini 已手动断开，请从右上角连接菜单重新连接。"}
@@ -7001,6 +7031,8 @@ class Controller(QObject):
         # persist the finished turn
         self._snapshot_active()
         self._save_all()
+        if (self._sessions[self._active].get('task_report') or {}).get('status') == 'incomplete':
+            self._pause_message_queue()
         if self._pending_plan_confirm:
             self._pending_plan_confirm = False
             if not err and self._plan_phase == "awaiting":

@@ -59,6 +59,7 @@ class AgentSession:
     # ---- wiring ----
     def set_tool_executor(self, fn):
         """fn(tool_name, **kwargs) -> dict — provided by the Qt controller."""
+        self._tool_executor = fn
         self.client.set_tool_executor(fn)
 
     def stop(self):
@@ -67,13 +68,21 @@ class AgentSession:
     # ---- messages ----
     def build_messages(self, with_thinking):
         sys = self._sys_think if with_thinking else self._sys_no_think
-        return [{"role": "system", "content": sys}] + copy.deepcopy(self.history)
+        messages = [{"role": "system", "content": sys}] + copy.deepcopy(self.history)
+        facts = getattr(self, '_scene_facts', None)
+        if facts:
+            import json
+            brief = {k: facts.get(k) for k in ('network_path', 'hip_path', 'version', 'frame', 'revision')}
+            brief['nodes'] = [{k: n.get(k) for k in ('path', 'type', 'comment', 'geometry')} for n in facts.get('nodes', [])[:12]]
+            messages.insert(1, {'role': 'system', 'content': '上次场景观察（可能过期，不是当前事实；换 HIP/会话、手动修改或写操作前重新 get_scene_facts）：'
+                             + json.dumps(brief, ensure_ascii=False)[:2500]})
+        return messages
 
     # ---- run one user turn ----
     def run(self, user_text, model, provider, mode, callbacks, context_limit=128000,
             enable_thinking=True, supports_vision=False, tools=None, max_iter=None,
             think_tags=True,
-            images=None, rag=True, memory=False, tool_mode=None):
+            images=None, rag=True, memory=False, tool_mode=None, plan=None):
         self.client.reset_stop()
         incoming_images = images or []
         usable_images = incoming_images if supports_vision else []
@@ -110,23 +119,40 @@ class AgentSession:
                 if (t.get("function") or {}).get("name") != "capture_viewport"
             ]
 
-        result = self.client.agent_loop_auto(
-            messages=messages,
-            model=model,
-            provider=provider,
-            max_iterations=max_iter,
-            max_tokens=None,
-            enable_thinking=enable_thinking,
-            supports_vision=bool(supports_vision),
-            tools_override=tools_override,
-            context_limit=context_limit,
-            on_content=callbacks.get("on_content"),
-            on_thinking=callbacks.get("on_thinking"),
-            on_tool_call=callbacks.get("on_tool_call"),
-            on_tool_result=callbacks.get("on_tool_result"),
-            on_tool_args_delta=callbacks.get("on_tool_args_delta"),
-            on_iteration_start=callbacks.get("on_iteration_start"),
-        )
+        from houdini_agent.utils.task_runtime import TaskRuntime
+        runtime = TaskRuntime(mode, tool_mode, plan)
+        executor = getattr(self, '_tool_executor', self.client._tool_executor)
+        def tracked(name, **kwargs):
+            return runtime.execute(executor, name, kwargs)
+        self.client.set_tool_executor(tracked)
+        try:
+            result = self.client.agent_loop_auto(
+                messages=messages,
+                model=model,
+                provider=provider,
+                max_iterations=min(max_iter, 80),
+                max_tool_calls=200,
+                max_tokens=None,
+                enable_thinking=enable_thinking,
+                supports_vision=bool(supports_vision),
+                tools_override=tools_override,
+                context_limit=context_limit,
+                on_content=callbacks.get("on_content"),
+                on_thinking=callbacks.get("on_thinking"),
+                on_tool_call=callbacks.get("on_tool_call"),
+                on_tool_result=callbacks.get("on_tool_result"),
+                on_tool_args_delta=callbacks.get("on_tool_args_delta"),
+                on_iteration_start=callbacks.get("on_iteration_start"),
+                on_plan_incomplete=runtime.continuation,
+            )
+        finally:
+            self.client.set_tool_executor(executor)
+        note = runtime.finish(result)
+        if runtime.scene_facts:
+            self._scene_facts = runtime.scene_facts
+        if note and callbacks.get('on_content'):
+            callbacks['on_content'](note)
+
         # A rejected request produced no conversation or tool work. Do not keep
         # an unanswered duplicate in model context when the draft is re-sent.
         if (not result.get("ok") and not result.get("new_messages")
@@ -150,13 +176,14 @@ class AgentSession:
             clean.pop("reasoning_content", None)
             self.history.append(clean)
 
-        final = result.get("final_content", "") or ""
+        final = result.get("final_content") or result.get("content") or ""
         clean = re.sub(r"<think>[\s\S]*?</think>", "", final).strip()
         if clean or not self.history or self.history[-1].get("role") != "assistant":
             self.history.append({"role": "assistant", "content": clean or "(no content)"})
 
     def reset(self):
         self.history = []
+        self._scene_facts = None
 
     # ---- helpers ----
     @staticmethod
@@ -180,6 +207,14 @@ class AgentSession:
                 s = get_doc_index().auto_retrieve(query, max_chars=1200)
                 if s:
                     out.append({"role": "system", "content": s})
+            except Exception:
+                pass
+        if memory:
+            try:
+                from houdini_agent.utils.effect_library import context
+                cases = context(query)
+                if cases:
+                    out.append({'role': 'system', 'content': cases})
             except Exception:
                 pass
         if memory:
