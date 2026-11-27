@@ -147,7 +147,11 @@ def discover_sessions():
     def probe(port):
         info = _ping(port)
         if isinstance(info, dict) and info.get("status") == "ok":
-            return {"port": port, "version": str(info.get("houdini") or "")}
+            session = {"port": port, "version": str(info.get("houdini") or "")}
+            for key in ("hip_path", "hip_name", "unsaved", "pid"):
+                if key in info:
+                    session[key] = info[key]
+            return session
         return None
 
     with ThreadPoolExecutor(max_workers=8) as pool:

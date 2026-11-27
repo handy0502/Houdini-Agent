@@ -15,6 +15,36 @@ from .client import DEFAULT_HOST, DEFAULT_PORT, port_file
 _SERVER = None
 _THREAD = None
 _MCP = None
+_SESSION_META = {}
+_SESSION_CALLBACK = None
+
+
+def _refresh_session_metadata(*args, **kwargs):
+    """Called on Houdini's main thread; heartbeat workers only read the cache."""
+    global _SESSION_META
+    try:
+        import hou
+        path = str(hou.hipFile.path()).replace("\\", "/")
+        _SESSION_META = {"hip_path": path, "hip_name": path.rsplit("/", 1)[-1],
+                         "unsaved": bool(hou.hipFile.isNewFile()), "pid": os.getpid()}
+    except Exception:
+        _SESSION_META = {}
+
+
+def _watch_session_metadata():
+    global _SESSION_CALLBACK
+    _refresh_session_metadata()
+    if _SESSION_CALLBACK is None:
+        try:
+            import hou
+            def changed(event_type, **kwargs):
+                if event_type in (hou.hipFileEventType.AfterLoad, hou.hipFileEventType.AfterSave,
+                                  hou.hipFileEventType.AfterClear, hou.hipFileEventType.AfterMerge):
+                    _refresh_session_metadata()
+            hou.hipFile.addEventCallback(changed)
+            _SESSION_CALLBACK = changed
+        except Exception:
+            pass
 
 
 def _log(msg):
@@ -249,7 +279,7 @@ class _Handler(socketserver.StreamRequestHandler):
             payload = req.get("payload") or {}
             if action == "ping":
                 import hou
-                result = {"status": "ok", "houdini": hou.applicationVersionString()}
+                result = dict(_SESSION_META, status="ok", houdini=hou.applicationVersionString())
             elif action == "scene_context":
                 result = _main_thread(_scene_context)
             elif action == "execute_tool":
@@ -321,6 +351,7 @@ def start_bridge(host=DEFAULT_HOST, port=None):
         print(msg)
         return None
     _write_port_file(bound)
+    _watch_session_metadata()
     _THREAD = threading.Thread(target=_SERVER.serve_forever, name="HoudiniAgentBridge", daemon=True)
     _THREAD.start()
     _log("Bridge listening on %s:%s root=%s" % (host, bound, Path(__file__).resolve().parents[2]))

@@ -61,3 +61,23 @@ def test_exclusive_listener_rejects_old_reuse_enabled_server():
     with LegacyServer(("127.0.0.1", 0), server._Handler) as legacy:
         with pytest.raises(OSError):
             server._Server(legacy.server_address, server._Handler)
+
+
+def test_scene_metadata_refreshes_after_save_and_discovery_keeps_it(monkeypatch):
+    callbacks = []
+    scene = {'path': 'C:/projects/环岛/traffic.hip', 'new': False}
+    events = SimpleNamespace(AfterLoad=1, AfterSave=2, AfterClear=3, AfterMerge=4)
+    fake = SimpleNamespace(hipFile=SimpleNamespace(path=lambda: scene['path'],
+        isNewFile=lambda: scene['new'], addEventCallback=callbacks.append), hipFileEventType=events)
+    monkeypatch.setitem(sys.modules, 'hou', fake)
+    monkeypatch.setattr(server, '_SESSION_META', {})
+    monkeypatch.setattr(server, '_SESSION_CALLBACK', None)
+    server._watch_session_metadata()
+    assert server._SESSION_META['hip_name'] == 'traffic.hip'
+    scene.update(path='C:/projects/other.hip', new=True)
+    callbacks[0](events.AfterSave)
+    assert server._SESSION_META['hip_name'] == 'other.hip'
+    assert server._SESSION_META['unsaved']
+    monkeypatch.setattr(doctor, '_candidate_ports', lambda: [45172])
+    monkeypatch.setattr(doctor, '_ping', lambda p: dict(server._SESSION_META, status='ok', houdini='21'))
+    assert doctor.discover_sessions()[0]['hip_path'] == scene['path']

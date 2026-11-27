@@ -135,7 +135,8 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
             from houdini_agent.bridge import doctor
             installs = [dict(version='22.0.429', path='C:/fake/22', exe='fake22'),
                         dict(version='21.0.631', path='C:/fake/21', exe='fake21')]
-            discovered = [dict(port=45173, version='22.0.429'), dict(port=45174, version='21.0.631')]
+            discovered = [dict(port=45173, version='22.0.429', hip_name='City.hip', hip_path='/work/City.hip', unsaved=False),
+                          dict(port=45174, version='21.0.631', hip_name='untitled.hip', hip_path='/work/untitled.hip', unsaved=True)]
             coordinator = external.ExternalCoordinator(view, controller, str(state))
             coordinator.poll = MagicMock()
             with patch.object(external, 'find_houdini_installs', return_value=installs), \
@@ -164,6 +165,8 @@ def test_qml_navigation_composer_and_appearance(tmp_path):
                     QTest.qWait(20)
                 assert menu.property('visible') and not controller.houdiniConnection['busy']
                 assert controller.houdiniConnection['sessions'] == discovered
+                assert find('houdiniSession_45173').property('tooltip') == 'City.hip\n/work/City.hip'
+                assert 'untitled.hip' in find('houdiniSession_45174').property('tooltip')
                 def assert_menu_anchor():
                     anchor = connection.mapToScene(QPointF(connection.width(), connection.height()))
                     assert abs(menu.property('x') + menu.property('width') - anchor.x()) < 1.1

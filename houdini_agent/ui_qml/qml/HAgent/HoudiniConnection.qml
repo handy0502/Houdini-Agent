@@ -46,6 +46,7 @@ Rectangle {
     component ConnectionAction: AbstractButton {
         id: actionButton
         property bool selected: false
+        property string tooltip: text
         implicitHeight: Theme.fs(32)
         leftPadding: Theme.sp(10); rightPadding: Theme.sp(10)
         hoverEnabled: true
@@ -53,7 +54,7 @@ Rectangle {
         HoverHandler { enabled: actionButton.enabled; cursorShape: Qt.PointingHandCursor }
         ToolTip.visible: hovered
         ToolTip.delay: 650
-        ToolTip.text: text
+        ToolTip.text: tooltip
         background: Rectangle {
             radius: Theme.radSm
             color: actionButton.hovered || actionButton.down || actionButton.visualFocus
@@ -184,6 +185,10 @@ Rectangle {
                         objectName: "houdiniSession_" + modelData.port
                         Layout.fillWidth: true
                         text: "Houdini " + modelData.version + " · " + modelData.port
+                        tooltip: modelData.hip_name
+                            ? (modelData.unsaved ? button.loc("未保存场景", "Unsaved scene") : modelData.hip_name)
+                                + "\n" + (modelData.hip_path || "")
+                            : button.loc("场景信息不可用，请重启该 Houdini 的 Bridge", "Scene info unavailable; restart this Houdini Bridge")
                         selected: button.connected && button.info.port === modelData.port
                         enabled: button.canChange
                         onClicked: button.perform("connect:" + modelData.port)
