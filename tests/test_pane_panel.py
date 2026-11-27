@@ -105,8 +105,8 @@ def test_panel_widget_loads_offscreen(tmp_path, renderer):
         hfs = Path(os.environ.get('HFS', ''))
         if os.name == 'nt' and (hfs / 'bin').is_dir():
             dll_handle = os.add_dll_directory(str(hfs / 'bin'))
-        from PySide6.QtCore import QObject, QSettings, QEvent, Qt, qInstallMessageHandler
-        from PySide6.QtWidgets import QApplication
+        from PySide6.QtCore import QObject, QSettings, QEvent, Qt, QMetaObject, qInstallMessageHandler
+        from PySide6.QtWidgets import QApplication, QLineEdit, QWidget, QVBoxLayout
         from PySide6.QtTest import QTest
         from houdini_agent.ui_qml import controller as module, pane
         app = QApplication([])
@@ -125,8 +125,13 @@ def test_panel_widget_loads_offscreen(tmp_path, renderer):
              patch.object(pane, '_install_hooks'):
             widget = pane.create_widget(use_backend=False)
             view = pane.inner_view(widget)
-            widget.resize(700, 820)
-            widget.show()
+            shell = QWidget()
+            layout = QVBoxLayout(shell)
+            layout.addWidget(widget)
+            outside = QLineEdit()
+            layout.addWidget(outside)
+            shell.resize(700, 820)
+            shell.show()
             QTest.qWait(900)
             root = view.rootObject()
             assert root is not None, [error.toString() for error in view.errors()]
@@ -151,6 +156,17 @@ def test_panel_widget_loads_offscreen(tmp_path, renderer):
             QTest.keyClick(view, Qt.Key_Comma, Qt.ControlModifier)
             app.processEvents()
             assert root.findChild(QObject, 'settingsWindow').property('opened'), 'Panel Ctrl+, must work'
+            QMetaObject.invokeMethod(root.findChild(QObject, 'settingsWindow'), 'close')
+            # Explicit user navigation must cancel delayed focus retries.
+            pane.activate(widget)
+            QTest.qWait(100)
+            QTest.mouseClick(outside, Qt.LeftButton)
+            QTest.qWait(20)
+            assert outside.hasFocus(), 'Host field must receive the click before checking delayed callbacks'
+            QTest.qWait(850)
+            assert outside.hasFocus(), 'Panel activation must not steal focus back from the host'
+            QTest.keyClicks(outside, 'host')
+            assert outside.text() == 'host'
             widget.hide()
             QTest.qWait(20)
             assert not root.property('embeddedFocus'), 'Hidden panel must release host shortcuts'
@@ -160,6 +176,8 @@ def test_panel_widget_loads_offscreen(tmp_path, renderer):
             assert not pane._views
             widget.close()
             widget.deleteLater()
+            shell.close()
+            shell.deleteLater()
             app.sendPostedEvents(None, QEvent.DeferredDelete)
             app.processEvents()
         print('QML loaded OK; typing and panel teardown passed')

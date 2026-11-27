@@ -217,6 +217,7 @@ UI_EN = {
     "压缩上下文": "Compress context", "已压缩上下文": "Context compressed",
     "新建会话": "New session", "字号…": "Font size…", "字号": "Font size",
     "重置": "Reset", "关闭": "Close", "稍后": "Later", "立即更新": "Update now",
+    "会话已切换或正在运行，请重新确认清空对话": "Chat changed or is running. Confirm clearing it again.",
     "ChatGPT 订阅": "ChatGPT plan", "订阅登录": "Sign in", "浏览器登录": "Sign in with browser",
     "设备码登录": "Sign in with code", "退出登录": "Sign out", "取消登录": "Cancel sign-in",
     "刷新模型": "Refresh models", "复制": "Copy",
@@ -658,7 +659,7 @@ class Controller(QObject):
     _sigCtxRefresh = Signal()
     # worker -> main thread: 应用内更新状态机 (state, percent, message)
     _sigUpdateState = Signal(str, int, str)
-    # worker -> main thread: 检查到新版本，显示更新横幅。必须走信号：在 Python 后台线程里
+    # worker -> main thread: 检查到新版本，显示侧栏更新入口。必须走信号：在 Python 后台线程里
     # 调 QTimer.singleShot 回调永远不会执行（该线程没有事件循环），横幅因此从未出现过。
     _sigUpdateFound = Signal(str)
 
@@ -2350,9 +2351,17 @@ class Controller(QObject):
         if self._running:
             self.toast.emit("当前正在运行，不能清空对话")
             return
-        self._request_confirm("清空对话", "确定要清空当前会话吗？此操作会删除当前会话的消息历史。", self._clear_chat_now)
+        session_id = self._sessions[self._active]["id"]
+        self._request_confirm("清空对话", "确定要清空当前会话吗？此操作会删除当前会话的消息历史。",
+                              lambda: self._clear_chat_now(session_id))
 
-    def _clear_chat_now(self):
+    def _clear_chat_now(self, expected_session_id=None):
+        # A second embedded/floating view can switch chats or start a run while
+        # this view still displays an older confirmation dialog.
+        if self._running or (expected_session_id is not None
+                and self._sessions[self._active]["id"] != expected_session_id):
+            self.toast.emit(self.tr("会话已切换或正在运行，请重新确认清空对话"))
+            return
         self._model.clear()
         if self._session:
             self._session.reset()
@@ -2870,8 +2879,8 @@ class Controller(QObject):
     @Slot()
     def dismissUpdate(self):
         if self._update_state in ("downloading", "installing"):
-            return                      # 下载 / 安装中不允许关横幅（没有取消语义）
-        self._stop_update_timers()      # "waiting" 时关横幅 = 取消待安装
+            return                      # 下载 / 安装中不允许取消
+        self._stop_update_timers()      # "waiting" 时可取消待安装
         self._update_info = None
         self._update_state = ""
         self._update_progress = 0
@@ -2976,7 +2985,7 @@ class Controller(QObject):
         if self._update_busy():
             self._update_state = "waiting"
             self._update_progress = 100
-            self._update_info = "新版本已下载，等当前任务结束后自动安装并重启（关闭横幅可取消）"
+            self._update_info = "新版本已下载，等当前任务结束后自动安装并重启（点击「取消更新」可取消）"
             self.updateAvailableChanged.emit()
             self._update_timer("_update_wait_timer", 1500, self._try_install).start()
             return

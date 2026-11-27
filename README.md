@@ -90,7 +90,7 @@ The **QML/Qt Quick** front-end (`houdini_agent/ui_qml/`) receives streamed state
 - **Failed-message recovery** — Return to input in the error block restores the original text and readable attachments for editing and resending. Missing attachments are reported; restoration does not resend automatically
 - **Appearance** — adjust font scale, font family, density, theme and accent in Settings → Appearance; preferences persist
 - **Bilingual UI** — Chinese/English language switching, with all UI elements and system prompts dynamically retranslated
-- **Update notification** — banner when a new version is detected, with "Update Now" and dismiss
+- **Update notification** — an Update button appears left of the sidebar settings gear when an update is available, and is hidden otherwise. Hover for version/status, follow download progress, or cancel while waiting to install. Packaged apps use the installer flow; source and embedded Houdini runs require source updates
 - **Management panel** — in-app Plugin Manager, Rules Editor, and long-term Memory browser
 - **IME support** — full Chinese/Japanese/Korean input method support on Windows and macOS
 
@@ -668,7 +668,8 @@ Save working-tree changes before fetching updates from this fork. An upstream in
 The following describes the original updater; check the update source before using it with this fork:
 
 - In the current UI, use **Settings → About → Check for updates**
-- The plugin checks GitHub on startup (silently) and shows an **update notification banner** above the input area if a new version is available
+- Startup checks silently; an available update appears left of the sidebar settings button without consuming chat space
+- Click to enter the existing update flow; the button shows download progress and can cancel a queued installation, and is hidden when there is no update
 - One-click "Update Now" from the banner or toolbar button
 - Updates preserve your `config/`, `cache/`, `trainData/`, `plugins/`, and `rules/` directories
 - After updating, the plugin restarts automatically

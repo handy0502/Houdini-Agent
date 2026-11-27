@@ -39,3 +39,4 @@ jobs:
           tests/test_bridge_protocol.py tests/test_bridge_sessions.py tests/test_memory_tools.py
           tests/test_tool_registry.py tests/test_qml_shell.py
           tests/test_pane_panel.py tests/test_panel_scroll.py
+          tests/test_message_queue.py tests/test_update_check.py

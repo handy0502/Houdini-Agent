@@ -189,6 +189,31 @@ def test_clearing_chat_resets_plan_confirmation_and_allows_sending(ctrl):
     assert ctrl.running and ctrl.queuedCount == 0
 
 
+def test_clear_confirmation_does_not_follow_another_views_session_switch(ctrl):
+    ctrl._model.load([{'type': 'user', 'payload': {'text': 'chat A'}}])
+    ctrl._snapshot_active()
+    ctrl.clearChat()
+    token = next(iter(ctrl._confirm_actions))
+    ctrl.newSession()
+    ctrl._model.load([{'type': 'user', 'payload': {'text': 'chat B'}}])
+    ctrl._snapshot_active()
+    ctrl.acceptDialogConfirm(token)
+    assert ctrl._sessions[0]['rows'][0]['payload']['text'] == 'chat A'
+    assert ctrl._model._items[0]['payload']['text'] == 'chat B'
+    ctrl.clearChat()
+    ctrl.acceptDialogConfirm(next(iter(ctrl._confirm_actions)))
+    assert ctrl._model._items == []
+
+
+def test_clear_confirmation_cannot_reset_a_new_running_request(ctrl):
+    ctrl.clearChat()
+    token = next(iter(ctrl._confirm_actions))
+    ctrl.send('new running task')
+    ctrl.acceptDialogConfirm(token)
+    assert ctrl.running
+    assert ctrl._model._items[0]['payload']['text'] == 'new running task'
+
+
 def test_waiting_plan_is_restored_with_its_own_queue_after_restart(ctrl):
     payload = pending_plan(ctrl)
     ctrl.send('after confirmation')

@@ -16,7 +16,7 @@ Popup {
     property bool supportsVision: false
     function loc(s) { return controller ? (controller.lang, controller.tr(s)) : s }
     function openInfo(t, b) { mode = "info"; dialogTitle = t; body = b; open() }
-    // 检查更新发现新版本：正文同 info，按钮为「稍后」+「立即更新」（与横幅按钮同一入口）
+    // 手动检查更新的对话框与侧栏更新按钮共用 startUpdate 入口。
     function openUpdate(t, b) { mode = "update"; dialogTitle = t; body = b; open() }
     function openApi(p) { mode = "api"; provider = p; dialogTitle = "API Key · " + p; apiField.text = ""; open() }
     function openConfirm(t, b, token) {

@@ -260,6 +260,10 @@ def _build_focus_guard():
         def eventFilter(self, obj, event):
             kind = event.type()
             if kind == QtCore.QEvent.MouseButtonPress:
+                # Any explicit click supersedes delayed activation retries,
+                # including clicks in another Houdini pane or a panel popup.
+                for pending in _views:
+                    _cancel_focus(pending)
                 entry = self._entry_for(obj)
                 # 原生窗口（QQuickView）自己处理鼠标/键盘，这里不能再抢焦点：
                 # 否则每点一次按钮/菜单都把 QML 焦点抢到输入框，点击就被打断了。
@@ -546,19 +550,43 @@ def inner_view(widget):
     return widget
 
 
+def _cancel_focus(entry):
+    entry["focus_generation"] = entry.get("focus_generation", 0) + 1
+
+
 def _schedule_focus(entry):
     """Houdini 会在 onCreateInterface 之后才把 widget 塞进 pane，所以焦点要重试几次。"""
     QtWidgets, QtCore, QtGui = _qt()
     view = entry["view"]
     container = entry["container"]
+    _cancel_focus(entry)
+    generation = entry["focus_generation"]
+    attempted = False
 
     def grab():
+        nonlocal attempted
+        if (entry.get("focus_generation") != generation
+                or not any(current is entry for current in _views)):
+            return
         try:
             if not _view_visible(view):
                 return
+            # Stop retrying once the earlier activation has actually landed.
+            # A later focus loss is a user's navigation, not a failed activation.
+            focused = view.isActive() if entry.get("native") else view.hasFocus()
+            if attempted and focused:
+                _cancel_focus(entry)
+                return
+        except Exception:
+            return
+        attempted = True
+        _focus_entry(entry)
+        try:
+            focused = view.isActive() if entry.get("native") else view.hasFocus()
+            if focused:
+                _cancel_focus(entry)
         except Exception:
             pass
-        _focus_entry(entry)
 
     for delay in (0, 60, 250, 800):
         try:
@@ -635,6 +663,9 @@ def activate(widget=None):
 
 def deactivate(widget=None):
     """``onDeactivateInterface``：切走时落一次盘，避免异常退出丢历史。"""
+    for entry in _views:
+        if widget is None or entry["container"] is widget or entry["view"] is widget:
+            _cancel_focus(entry)
     _save()
 
 
