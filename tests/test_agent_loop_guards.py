@@ -93,3 +93,44 @@ def test_p6_guidance_not_persisted():
         if m.get("role") == "tool":
             assert "必须以 <think>" not in m["content"]
             assert "无需调用check_errors" not in m["content"]
+
+
+def test_continuation_is_called_even_on_first_pure_text_response():
+    agent = _FakeAgent()
+    rounds = []
+    def stream(**kwargs):
+        rounds.append(kwargs['messages'])
+        yield {'type': 'content', 'content': 'Done'}
+    agent.chat_stream = stream
+    prompts = iter(['Continue unfinished plan', None])
+    result = agent.agent_loop_stream(messages=[{'role': 'user', 'content': 'Build'}],
+                max_iterations=3, tools_override=[], on_plan_incomplete=lambda: next(prompts))
+    assert len(rounds) == 2 and result['ok']
+
+
+def test_tool_budget_is_enforced_before_execution_and_history_stays_valid():
+    agent = _FakeAgent()
+    agent._batch_tool_executor = None
+    def stream(**kwargs):
+        for i in range(4):
+            yield {'type': 'tool_call', 'tool_call': {'id': 'call_' + str(i), 'type': 'function',
+                'function': {'name': 'create_node', 'arguments': '{"index":%d}' % i}}}
+    agent.chat_stream = stream
+    result = agent.agent_loop_stream(messages=[{'role': 'user', 'content': 'Build'}],
+                max_iterations=2, max_tool_calls=2, tools_override=[])
+    assert agent.exec_count == 2 and result['budget_exhausted']
+    tools = [m for m in result['new_messages'] if m.get('role') == 'tool']
+    assert {m['tool_call_id'] for m in tools} == {'call_0', 'call_1', 'call_2', 'call_3'}
+
+
+def test_json_mode_continues_from_first_response():
+    agent = _FakeAgent()
+    rounds = []
+    def stream(**kwargs):
+        rounds.append(1)
+        yield {'type': 'content', 'content': 'Done'}
+    agent.chat_stream = stream
+    prompts = iter(['Continue the unfinished plan', None])
+    result = agent.agent_loop_json_mode(messages=[{'role': 'user', 'content': 'Build'}],
+                max_iterations=3, tools_override=[], on_plan_incomplete=lambda: next(prompts))
+    assert len(rounds) == 2 and result['ok']

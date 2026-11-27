@@ -38,6 +38,7 @@ except ImportError:  # Houdini <= 20.5 (Qt5)
     import random
 
 from houdini_agent.utils import model_catalog as catalog
+from houdini_agent.utils.memory_tools import MEMORY_TOOLS
 
 
 ROLE_TYPE = Qt.UserRole + 1
@@ -70,7 +71,7 @@ PLAN_READONLY = {"get_network_structure", "get_node_parameters", "list_children"
                  "read_selection", "check_errors", "search_local_doc",
                  "get_houdini_node_doc", "web_search", "fetch_webpage",
                  "search_memory", "list_skills", "capture_viewport",
-                 "check_houdini_connection"}
+                 "check_houdini_connection", "verify_and_summarize", "get_scene_facts", "search_effect_cases"}
 
 try:
     from houdini_agent.utils.plan_manager import (
@@ -83,7 +84,8 @@ except Exception:
 CONFIRM_TOOLS = {"create_node", "create_nodes_batch", "create_wrangle_node", "delete_node",
                  "set_node_parameter", "batch_set_parameters", "connect_nodes", "copy_node",
                  "execute_python", "execute_shell", "save_hip", "run_skill",
-                 "repair_houdini_connection"}
+                 "repair_houdini_connection", "save_memory", "save_effect_case",
+                 "create_effect_controls", "create_effect_variants", "package_effect"}
 
 # Meshy 集成（自包含包，import 即自注册到 ToolRegistry）。
 # 网络工具在 app 侧后台线程执行；生成类工具消耗 credits，纳入确认门。
@@ -202,6 +204,12 @@ UI_EN = {
     "耗时较久？可转后台": "Taking a while? Run in background", "已转入后台，生成完成后把结果发给 Agent…": "Moved to background; results will be sent to the agent when ready…",
     "字号 +": "Font +", "字号 −": "Font −", "规则编辑器": "Rules editor",
     "插件管理": "Plugins", "记忆管理": "Memory manager", "长期记忆": "Long-term memory",
+    "新增记忆": "Add memory", "记忆已保存": "Memory saved",
+    "偏好": "Preferences", "个人信息": "User profile", "常用命令": "Commands",
+    "调试经验": "Debugging", "注意事项": "Pitfalls", "工作流程": "Workflow",
+    "知识": "Knowledge", "其他": "Other",
+    "长期记忆已关闭，开启后用于后续对话": "Memory is off. Enable it to use saved memories in future chats.",
+    "写下希望跨会话保留的偏好或经验": "Enter preferences or knowledge to retain across chats",
     "实时 Cook": "Realtime cook", "语言：中文": "Language: 中文",
     "语言：English": "Language: English", "清空对话": "Clear chat", "新对话": "New chat",
     "Token 分析": "Token analytics", "Token 用量": "Token usage",
@@ -210,6 +218,7 @@ UI_EN = {
     "压缩上下文": "Compress context", "已压缩上下文": "Context compressed",
     "新建会话": "New session", "字号…": "Font size…", "字号": "Font size",
     "重置": "Reset", "关闭": "Close", "稍后": "Later", "立即更新": "Update now",
+    "会话已切换或正在运行，请重新确认清空对话": "Chat changed or is running. Confirm clearing it again.",
     "ChatGPT 订阅": "ChatGPT plan", "订阅登录": "Sign in", "浏览器登录": "Sign in with browser",
     "设备码登录": "Sign in with code", "退出登录": "Sign out", "取消登录": "Cancel sign-in",
     "刷新模型": "Refresh models", "复制": "Copy",
@@ -308,6 +317,15 @@ UI_EN = {
     "名称": "Name", "API 格式": "API format", "模型列表": "Models",
     "添加模型": "Add model", "上下文窗口": "Context window", "图片": "Vision",
     "使用": "Use", "当前": "Active", "保存": "Save", "模型名": "Model name",
+    "未配置": "Not configured", "未登录": "Not signed in",
+    "已配置 · 未验证": "Configured · Not verified", "已登录 · 未验证": "Signed in · Not verified",
+    "未填写 Key · 未验证": "No key entered · Not verified", "验证中…": "Checking…",
+    "已验证可用": "Verified", "限流 · 稍后再试": "Rate limited · Retry later",
+    "验证失败": "Check failed", "验证": "Check", "当前使用": "In use", "选择模型": "Select model",
+    "配置": "Configure", "返回": "Back", "已验证": "Verified", "配置已修改，可直接验证": "Configuration changed — ready to check",
+    "进入配置页管理账号、模型和验证": "Open configuration to manage accounts, models and checks",
+    "每个供应商仅使用第一个模型验证一次，配置不变时复用结果":
+        "Each provider is checked once using its first model. Unchanged configurations reuse saved results.",
     "还没有自定义供应商": "No custom providers yet",
     "请填写名称": "Please enter a name", "请填写有效的 Base URL": "Enter a valid Base URL",
     "请至少添加一个模型": "Add at least one model", "无效数据": "Invalid data", "已保存": "Saved",
@@ -611,6 +629,8 @@ class Controller(QObject):
     openSettingsDialog = Signal()         # request the unified settings window
     modelsChanged = Signal()              # 模型目录已更新（MODEL_MAP 被后台刷新改写）
     modelsRefreshingChanged = Signal()    # 刷新开始/结束
+    providerStatusChanged = Signal()
+    _sigProviderCheck = Signal(object)
     imageModelChanged = Signal()          # 默认生图模型或 Codex 生图模型目录变化
     codexImageRefreshingChanged = Signal()
     _sigCodexImageRefresh = Signal(str)   # worker -> main: Codex 生图模型同步结果 JSON
@@ -640,9 +660,10 @@ class Controller(QObject):
     _sigCtxRefresh = Signal()
     # worker -> main thread: 应用内更新状态机 (state, percent, message)
     _sigUpdateState = Signal(str, int, str)
-    # worker -> main thread: 检查到新版本，显示更新横幅。必须走信号：在 Python 后台线程里
+    # worker -> main thread: 检查到新版本，显示侧栏更新入口。必须走信号：在 Python 后台线程里
     # 调 QTimer.singleShot 回调永远不会执行（该线程没有事件循环），横幅因此从未出现过。
     _sigUpdateFound = Signal(str)
+    _sigTaskReport = Signal(object)
 
     def __init__(self, model, use_backend=False, parent=None):
         super().__init__(parent)
@@ -652,6 +673,8 @@ class Controller(QObject):
         # 自定义供应商列表（每个含 name/base_url/api_key/anthropic/models[]，
         # 每个模型带 name/context/vision）。激活键形如 "custom:<id>"。
         self._custom_providers = []
+        self._provider_checks = {}
+        self._load_provider_checks()
         self._mode = "Agent"
         self._show_thinking = True
         self._confirm_mode = False
@@ -803,6 +826,8 @@ class Controller(QObject):
         self._sigToolCall.connect(self._ui_tool_call)
         self._sigToolResult.connect(self._ui_tool_result)
         self._sigDone.connect(self._ui_done)
+        self._sigProviderCheck.connect(self._on_provider_check)
+        self.subscriptionChanged.connect(self._reset_subscription_checks)
         self._sigNodeOp.connect(self._ui_node_op)
         self._sigPlan.connect(self._ui_plan)
         self._sigPlanStep.connect(self._ui_plan_step)
@@ -848,6 +873,7 @@ class Controller(QObject):
         self._sigCtxRefresh.connect(self.refreshContext)
         self._sigUpdateState.connect(self._on_update_state)
         self._sigUpdateFound.connect(self._set_update)
+        self._sigTaskReport.connect(self._ui_task_report)
 
         # coalesce UI flushes to ~25fps (avoids O(N^2) re-render on long runs)
         self._flush_timer = QTimer(self)
@@ -1580,6 +1606,159 @@ class Controller(QObject):
         return False
 
     # ---- 自定义供应商管理（设置页「模型与 Provider」用） ----
+    def _load_provider_checks(self):
+        try:
+            raw = QSettings('HoudiniAI', 'Assistant').value('provider_model_checks', '[]')
+            rows = json.loads(raw) if isinstance(raw, str) else raw
+            for row in rows if isinstance(rows, list) else []:
+                if (isinstance(row, dict) and row.get('state') in ('ok', 'error', 'busy')
+                        and all(isinstance(row.get(k), str) for k in ('provider', 'model', 'fingerprint'))
+                        and re.fullmatch(r'[0-9a-f]{64}', row['fingerprint'])):
+                    self._provider_checks[(row['provider'], row['model'])] = row
+        except (ValueError, TypeError):
+            pass
+
+    def _save_provider_checks(self):
+        rows = [dict(provider=provider, model=model, fingerprint=item['fingerprint'],
+                     state=item['state']) for (provider, model), item in self._provider_checks.items()
+                if item['state'] in ('ok', 'error', 'busy')]
+        try:
+            settings = QSettings('HoudiniAI', 'Assistant')
+            settings.setValue('provider_model_checks', json.dumps(rows, ensure_ascii=False))
+            settings.sync()
+            if settings.status() != type(settings).Status.NoError:
+                self.toast.emit('保存验证状态失败')
+        except Exception:
+            self.toast.emit('保存验证状态失败')
+
+    def _provider_account_signature(self, provider):
+        if not self._sub_kind(provider):
+            return ''
+        try:
+            from houdini_agent.subscription import manager
+            from .provider_check import fingerprint
+            accounts = manager.accounts(self._sub_kind(provider))
+            return fingerprint([dict(file=a.get('file', ''), email=a.get('email', '')) for a in accounts])
+        except Exception:
+            return ''
+
+    def _provider_snapshot(self, provider, model=None):
+        custom = self._custom_provider(provider)
+        names = self._provider_model_names(provider)
+        model = model or (self._model_name if self._provider == provider else (names[0] if names else ''))
+        if custom is not None:
+            return {'provider': provider, 'model': model, 'custom': True,
+                    'url': custom.get('base_url', ''), 'key': custom.get('api_key', ''),
+                    'anthropic': bool(custom.get('anthropic'))}
+        key = ''
+        if not self._sub_kind(provider):
+            keys = getattr(getattr(self._session, 'client', None), '_api_keys', {})
+            if isinstance(keys, dict):
+                key = keys.get(provider) or ''
+            if not key:
+                from houdini_agent.utils.ai_client_providers import AIClientProvidersMixin
+                key = AIClientProvidersMixin()._read_api_key(provider) or ''
+        return {'provider': provider, 'model': model, 'key': key,
+                'account': self._provider_account_signature(provider)}
+
+    def _provider_status(self, provider, model=None):
+        config = self._provider_snapshot(provider, model)
+        kind = self._sub_kind(provider)
+        configured = (self._sub_logged_in(provider) if kind else
+                      bool(config.get('url') and config['model']) if config.get('custom') else bool(config['key']))
+        state = 'unverified' if configured else 'missing'
+        stored = self._cached_provider_check(provider, config)
+        if configured and stored:
+            state = stored['state']
+        label = {'missing': '未登录' if kind else '未配置',
+                 'unverified': '已登录 · 未验证' if kind else
+                     '未填写 Key · 未验证' if config.get('custom') and not config['key'] else '已配置 · 未验证',
+                 'checking': '验证中…', 'ok': '已验证可用', 'busy': '限流 · 稍后再试', 'error': '验证失败'}[state]
+        return {'configured': configured, 'state': state, 'stateLabel': self.tr(label)}
+
+    def _cached_provider_check(self, provider, config):
+        from .provider_check import fingerprint, provider_fingerprint
+        stored = self._provider_checks.get((provider, ''))
+        if stored and stored['fingerprint'] == provider_fingerprint(config):
+            return stored
+        # Reuse legacy per-model checks without issuing another request.
+        legacy = [item for (key, model), item in self._provider_checks.items()
+                  if key == provider and model and item['fingerprint'] ==
+                  fingerprint(self._provider_snapshot(provider, model))]
+        return next((item for item in legacy if item['state'] == 'ok'), legacy[-1] if legacy else None)
+
+    def _provider_overview_status(self, provider):
+        return self._provider_status(provider)
+
+    @Slot()
+    def _reset_subscription_checks(self):
+        from .provider_check import fingerprint, provider_fingerprint
+        self._provider_checks = {k: v for k, v in self._provider_checks.items()
+            if not self._sub_kind(k[0]) or v['fingerprint'] ==
+            (fingerprint if k[1] else provider_fingerprint)(self._provider_snapshot(k[0], k[1]))}
+        self._save_provider_checks()
+        self.providerStatusChanged.emit()
+
+    @Slot(str)
+    def verifyProvider(self, provider):
+        if self._running:
+            self.toast.emit('请等待当前任务完成后再验证模型')
+            return
+        status = self._provider_status(provider)
+        if not status['configured'] or status['state'] in ('checking', 'ok'):
+            return
+        names = self._provider_model_names(provider)
+        if not names:
+            return
+        from .provider_check import provider_fingerprint, check_model
+        config = self._provider_snapshot(provider, names[0])
+        stamp = provider_fingerprint(config)
+        self._provider_checks[(provider, '')] = {'fingerprint': stamp, 'state': 'checking'}
+        self.providerStatusChanged.emit()
+        def work():
+            state = check_model(config)
+            try:
+                self._sigProviderCheck.emit({'provider': provider, 'model': config['model'],
+                                             'fingerprint': stamp, 'state': state})
+            except RuntimeError:
+                pass
+        threading.Thread(target=work, name='HAgentProviderCheck', daemon=True).start()
+
+    @Slot(object)
+    def _on_provider_check(self, result):
+        from .provider_check import provider_fingerprint
+        provider, model = result['provider'], result['model']
+        if provider_fingerprint(self._provider_snapshot(provider, model)) != result['fingerprint']:
+            return
+        self._provider_checks = {k: v for k, v in self._provider_checks.items() if k[0] != provider}
+        self._provider_checks[(provider, '')] = result
+        self._save_provider_checks()
+        self.providerStatusChanged.emit()
+
+    @Slot(str, result='QVariantMap')
+    def providerStatus(self, provider):
+        return self._provider_status(provider)
+
+    @Slot(str, result='QVariantMap')
+    def providerConfiguration(self, provider):
+        config = self._provider_snapshot(provider)
+        custom = self._custom_provider(provider)
+        models = []
+        for name in self._provider_model_names(provider):
+            meta = self._model_meta(provider, name)
+            if meta is not None:
+                context, vision = meta.get('context', 128000), bool(meta.get('vision'))
+            elif self._sub_kind(provider):
+                from houdini_agent.subscription import model_context
+                context, vision = model_context(self._sub_kind(provider), name), True
+            else:
+                context, vision = catalog.context_limit(name, provider), catalog.supports_vision(name, provider)
+            models.append(dict(name=name, context=context, vision=vision))
+        return dict(name=custom.get('name', '') if custom else PROVIDER_LABELS.get(provider, provider),
+                    subscription=bool(self._sub_kind(provider)), has_key=bool(config.get('key')),
+                    key_preview='••••••••' if config.get('key') else '', models=models,
+                    **self._provider_status(provider))
+
     @Slot(result="QVariantList")
     def customProviderItems(self):
         out = []
@@ -1587,13 +1766,13 @@ class Controller(QObject):
             pid = p.get("id", "")
             out.append({
                 "id": pid, "name": p.get("name", ""),
-                "base_url": p.get("base_url", ""), "api_key": p.get("api_key", ""),
+                "base_url": p.get("base_url", ""), "api_key": '••••••••' if p.get('api_key') else '',
                 "anthropic": bool(p.get("anthropic")),
                 "models": [{"name": m.get("name", ""),
                             "context": self._to_int(m.get("context"), 128000) or 128000,
                             "vision": bool(m.get("vision"))} for m in (p.get("models") or [])],
                 "active": self._provider == ("custom:" + pid),
-                "configured": bool(p.get("base_url")) and bool(p.get("models")),
+                **self._provider_overview_status("custom:" + pid),
             })
         return out
 
@@ -1604,7 +1783,8 @@ class Controller(QObject):
             if k == "custom":
                 continue
             out.append({"key": k, "name": PROVIDER_LABELS.get(k, k),
-                        "active": self._provider == k, "models": list(MODEL_MAP.get(k, []))})
+                        "active": self._provider == k, "models": self._provider_model_names(k),
+                        **self._provider_overview_status(k)})
         return out
 
     @Slot(str, result="QVariantMap")
@@ -1630,8 +1810,9 @@ class Controller(QObject):
         if not models:
             return {"ok": False, "error": self.tr("请至少添加一个模型")}
         pid = (d.get("id") or "").strip() or uuid.uuid4().hex[:8]
+        existing = self._custom_provider('custom:' + pid) or {}
         entry = {"id": pid, "name": name, "base_url": url,
-                 "api_key": (d.get("api_key") or "").strip(),
+                 "api_key": ((d.get("api_key") if "api_key" in d else existing.get('api_key')) or "").strip(),
                  "anthropic": bool(d.get("anthropic")), "models": models}
         found = False
         for i, p in enumerate(self._custom_providers):
@@ -1662,12 +1843,27 @@ class Controller(QObject):
             self._revert_provider_from_custom()
         self.customProvidersChanged.emit()
 
-    @Slot(str, str)
+    @Slot(str, str, result=bool)
     def selectProviderModel(self, provider_key, model_name):
+        if self._running:
+            self.toast.emit('当前正在运行，请在本轮结束后切换模型')
+            return False
+        provider_key = provider_key or self._provider
+        names = self._provider_model_names(provider_key)
+        model_name = model_name or (names[0] if names else '')
+        if model_name not in names:
+            return False
+        if not self._provider_status(provider_key)['configured']:
+            if self._is_custom_key(provider_key):
+                self.toast.emit('请先完善供应商配置')
+            else:
+                self.openProviderApiKey(provider_key)
+            return False
         if provider_key and provider_key != self._provider:
             self.setProvider(provider_key)
         if model_name and model_name != self._model_name:
             self.setModel(model_name)
+        return True
 
     @Slot(str)
     def openProviderApiKey(self, provider):
@@ -1886,7 +2082,9 @@ class Controller(QObject):
                 continue
             for b in (it.get("payload", {}) or {}).get("blocks", []):
                 k, st = b.get("kind"), b.get("state")
-                if k == "confirm" and st == "pending":
+                if k == "thinking":
+                    b["active"] = False
+                elif k == "confirm" and st == "pending":
                     b["state"] = "cancelled"
                 elif k == "askq" and st == "pending":
                     b["state"] = "answered"
@@ -2156,9 +2354,17 @@ class Controller(QObject):
         if self._running:
             self.toast.emit("当前正在运行，不能清空对话")
             return
-        self._request_confirm("清空对话", "确定要清空当前会话吗？此操作会删除当前会话的消息历史。", self._clear_chat_now)
+        session_id = self._sessions[self._active]["id"]
+        self._request_confirm("清空对话", "确定要清空当前会话吗？此操作会删除当前会话的消息历史。",
+                              lambda: self._clear_chat_now(session_id))
 
-    def _clear_chat_now(self):
+    def _clear_chat_now(self, expected_session_id=None):
+        # A second embedded/floating view can switch chats or start a run while
+        # this view still displays an older confirmation dialog.
+        if self._running or (expected_session_id is not None
+                and self._sessions[self._active]["id"] != expected_session_id):
+            self.toast.emit(self.tr("会话已切换或正在运行，请重新确认清空对话"))
+            return
         self._model.clear()
         if self._session:
             self._session.reset()
@@ -2541,6 +2747,16 @@ class Controller(QObject):
         except Exception as e:
             return {"episodic": 0, "semantic": 0, "procedural": 0, "error": str(e)}
 
+    @Slot(str, str, result=bool)
+    def addMemory(self, content, category):
+        from houdini_agent.utils.memory_tools import save_memory
+        # A manual Save is explicit authorization, even while auto-memory is off.
+        result = save_memory({'content': content, 'category': category}, enabled=True)
+        self.toast.emit(self.tr('记忆已保存') if result['success'] else result['error'])
+        if result['success']:
+            self.managementChanged.emit()
+        return result['success']
+
     @Slot(str, result="QVariantList")
     def memoryItems(self, kind):
         try:
@@ -2629,7 +2845,10 @@ class Controller(QObject):
             self.toast.emit("AI 后端尚未就绪，请稍候几秒再试")
             return False
         try:
-            self._session.client.set_api_key(key, persist=True, provider=provider)
+            if not self._session.client.set_api_key(key, persist=True, provider=provider):
+                self._info('API Key', '保存失败，请检查配置目录是否可写')
+                return False
+            self.providerStatusChanged.emit()
             self.toast.emit("已保存 %s 的 API Key。" % provider)
             return True
         except Exception as e:
@@ -2656,6 +2875,9 @@ class Controller(QObject):
             self._info("导出对话", "导出失败：%s" % e)
 
     def _set_update(self, info, state="available"):
+        from houdini_agent.utils.updater import supports_installer_updates
+        if not supports_installer_updates():
+            info = None
         self._update_info = info
         self._update_state = state if info else ""
         self.updateAvailableChanged.emit()
@@ -2663,8 +2885,8 @@ class Controller(QObject):
     @Slot()
     def dismissUpdate(self):
         if self._update_state in ("downloading", "installing"):
-            return                      # 下载 / 安装中不允许关横幅（没有取消语义）
-        self._stop_update_timers()      # "waiting" 时关横幅 = 取消待安装
+            return                      # 下载 / 安装中不允许取消
+        self._stop_update_timers()      # "waiting" 时可取消待安装
         self._update_info = None
         self._update_state = ""
         self._update_progress = 0
@@ -2672,6 +2894,10 @@ class Controller(QObject):
 
     @Slot()
     def silentUpdateCheck(self):
+        from houdini_agent.utils.updater import supports_installer_updates
+        if not supports_installer_updates():
+            self._set_update(None)
+            return
         def work():
             try:
                 from houdini_agent.utils.updater import check_update
@@ -2685,16 +2911,13 @@ class Controller(QObject):
     @Slot()
     def startUpdate(self):
         """一键更新：下载新版安装包 → 拉起静默安装 → 退出应用（装完自动重启）。
-        仅打包 exe 可用；源码运行没有可覆盖的安装，引导去官网。"""
-        if self._update_state in ("downloading", "waiting", "installing"):
+        仅打包 exe 可用；源码运行通过原仓库更新。"""
+        from houdini_agent.utils.updater import supports_installer_updates, source_update_notice
+        if not supports_installer_updates():
+            self._set_update(None)
+            self._info("检查更新", source_update_notice(self._lang))
             return
-        if not getattr(sys, "frozen", False):
-            try:
-                import webbrowser
-                webbrowser.open("https://houdini-agent.com")
-            except Exception:
-                pass
-            self.toast.emit("源码运行无法就地更新，请 git pull 或从官网安装")
+        if self._update_state in ("downloading", "waiting", "installing"):
             return
         self._update_state = "downloading"
         self._update_progress = 0
@@ -2769,7 +2992,7 @@ class Controller(QObject):
         if self._update_busy():
             self._update_state = "waiting"
             self._update_progress = 100
-            self._update_info = "新版本已下载，等当前任务结束后自动安装并重启（关闭横幅可取消）"
+            self._update_info = "新版本已下载，等当前任务结束后自动安装并重启（点击「取消更新」可取消）"
             self.updateAvailableChanged.emit()
             self._update_timer("_update_wait_timer", 1500, self._try_install).start()
             return
@@ -3057,6 +3280,11 @@ class Controller(QObject):
             pass
 
     def _check_update(self):
+        from houdini_agent.utils.updater import supports_installer_updates, source_update_notice
+        if not supports_installer_updates():
+            self._set_update(None)
+            self._info("检查更新", source_update_notice(self._lang))
+            return
         self.toast.emit("正在检查更新…")
         def work():
             try:
@@ -3765,7 +3993,7 @@ class Controller(QObject):
                         "outbox": s.get("outbox", []),
                         "outbox_paused": s.get("outbox_paused", False),
                         "plan_phase": s.get("plan_phase", "idle"),
-                        "usage": s.get("usage") or {}}
+                        "usage": s.get("usage") or {}, "task_report": s.get("task_report") or {}}
                 (self._cache_dir / ("session_%s.json" % s["id"])).write_text(
                     json.dumps(data, ensure_ascii=False, default=str), encoding="utf-8")
                 saved[s["id"]] = sig
@@ -3779,7 +4007,7 @@ class Controller(QObject):
         return (s.get("rows"), s.get("history"), s.get("title"),
                 s.get("provider", self._provider), s.get("model", self._model_name),
                 tuple(item["id"] for item in s.get("outbox", [])), s.get("outbox_paused", False),
-                s.get("plan_phase", "idle"))
+                s.get("plan_phase", "idle"), json.dumps(s.get('task_report') or {}, sort_keys=True))
 
     @Slot()
     def restore(self):
@@ -3802,7 +4030,8 @@ class Controller(QObject):
                                    "model": d.get("model", entry.get("model", self._model_name)),
                                    "outbox": d.get("outbox", []), "outbox_paused": True,
                                    "plan_phase": d.get("plan_phase", "idle"),
-                                   "usage": d.get("usage") if isinstance(d.get("usage"), dict) else {}})
+                                   "usage": d.get("usage") if isinstance(d.get("usage"), dict) else {},
+                                   "task_report": d.get("task_report") or {}})
             if loaded:
                 self._sessions = loaded
                 self._active = min(int(manifest.get("active", 0)), len(loaded) - 1)
@@ -3928,6 +4157,7 @@ class Controller(QObject):
         return True
 
     def _start_run(self, user_text, tools, max_iter, images=None):
+        self._run_provider_config = self._provider_snapshot(self._provider, self._model_name)
         last = self._model._items[-1] if self._model._items else {}
         payload = last.get("payload", {})
         self._run_message_id = payload.get("id") if last.get("type") == "user" and payload.get("text") == user_text else None
@@ -3957,13 +4187,14 @@ class Controller(QObject):
         threading.Thread(
             target=self._worker,
             args=(user_text, self._model_name, prov_arg, self._mode, tools, max_iter,
-                  images, supports_vision, ctx_limit),
+                  images, supports_vision, ctx_limit,
+                  copy.deepcopy(self._plan_payload) if self._plan_phase == 'executing' else None),
             daemon=True,
         ).start()
 
     def _planning_tools(self):
         base = [t for t in self._session.tools
-                if t.get("function", {}).get("name") in PLAN_READONLY]
+                if t.get("function", {}).get("name") in PLAN_READONLY | MEMORY_TOOLS]
         if PLAN_TOOL_ASK_QUESTION:
             base.append(PLAN_TOOL_ASK_QUESTION)
         if PLAN_TOOL_CREATE:
@@ -3977,9 +4208,9 @@ class Controller(QObject):
         return base
 
     def _ask_tools(self):
-        # read-only tools only (no create/delete/set/execute)
+        # Read-only scene tools; explicit user preference saves remain available.
         return [t for t in self._session.tools
-                if t.get("function", {}).get("name") in PLAN_READONLY]
+                if t.get("function", {}).get("name") in PLAN_READONLY | MEMORY_TOOLS]
 
     # ---- run state ----
     def _reset_run_state(self):
@@ -4064,7 +4295,7 @@ class Controller(QObject):
 
     # ---- worker thread ----
     def _worker(self, text, model, provider, mode, tools, max_iter, images=None,
-                supports_vision=False, context_limit=None):
+                supports_vision=False, context_limit=None, plan=None):
         def cb_content(t):
             self._last_activity = time.monotonic()
             vis, thk = self._split(t)
@@ -4128,17 +4359,24 @@ class Controller(QObject):
                 think_tags=(self._sub_kind(provider) is None),
                 supports_vision=supports_vision,
                 tools=tools, max_iter=max_iter,
+                plan=plan,
                 images=images, rag=True, memory=self._memory_enabled,
                 tool_mode=({"Ask": "ask", "Plan": "plan_" + self._plan_phase}
                            .get(mode, "agent")),
             )
+            if isinstance(result, dict) and isinstance(result.get('task_report'), dict):
+                self._sigTaskReport.emit(result['task_report'])
             if isinstance(result, dict) and not result.get("ok", True):
                 err = str(result.get("error") or result.get("final_content") or "AI request failed")
+                if re.search(r'\b(?:401|403|429)\b', err):
+                    self._report_run_provider_status('busy' if re.search(r'\b429\b', err) else 'error')
                 self._log_external("Worker result error: " + err[:1000])
                 self._accumulate_usage(result)      # 出错前已完成的请求也照实计入
                 self._sigDone.emit(err)
                 return
             self._accumulate_usage(result)
+            if isinstance(result, dict) and result.get('ok'):
+                self._report_run_provider_status('ok')
             self._sigDone.emit("")
         except Exception as e:
             import traceback
@@ -4146,6 +4384,17 @@ class Controller(QObject):
             print(tb)
             self._log_external("Worker exception: %s\n%s" % (e, tb))
             self._sigDone.emit(str(e))
+
+    @Slot(object)
+    def _ui_task_report(self, report):
+        self._sessions[self._active]['task_report'] = copy.deepcopy(report)
+
+    def _report_run_provider_status(self, state):
+        config = getattr(self, '_run_provider_config', None)
+        if config:
+            from .provider_check import provider_fingerprint
+            self._sigProviderCheck.emit({'provider': config['provider'], 'model': config['model'],
+                                         'fingerprint': provider_fingerprint(config), 'state': state})
 
     def _accumulate_usage(self, result):
         if not isinstance(result, dict):
@@ -4223,9 +4472,32 @@ class Controller(QObject):
                 print("[meshy] 同轮去重（确认前）：跳过重复调用 %s" % tool_name)
                 return _cache[_sig]
         # per-tool approval (confirm mode)
+        if tool_name in MEMORY_TOOLS and not self._memory_enabled:
+            return {"success": False, "error": "长期记忆已关闭，请在设置 › 常规中开启"}
         if self._confirm_mode and tool_name in CONFIRM_TOOLS:
             if not self._await_confirm(tool_name, kwargs):
                 return {"success": False, "error": "用户取消了该操作"}
+        if tool_name in MEMORY_TOOLS:
+            from houdini_agent.utils.memory_tools import save_memory, search_memory
+            handler = save_memory if tool_name == 'save_memory' else search_memory
+            result = handler(kwargs, enabled=self._memory_enabled)
+            if tool_name == 'save_memory' and result.get('success'):
+                self.managementChanged.emit()
+            return result
+        if tool_name == 'search_effect_cases':
+            from houdini_agent.utils.effect_library import EffectLibrary
+            cases = EffectLibrary().search(str(kwargs.get('query', '')), str(kwargs.get('project', '')),
+                                           str(kwargs.get('version', '')), kwargs.get('limit', 3))
+            return {'success': True, 'cases': cases, 'result': json.dumps(cases, ensure_ascii=False)}
+        if tool_name == 'save_effect_case':
+            # Keep standalone archives beside the app's search database, even
+            # when the Bridge package lives in a separate installed payload.
+            from houdini_agent.utils.effect_library import EffectLibrary
+            result = self._dispatch_scene_tool(tool_name, dict(kwargs, _prepare_only=True))
+            if not result.get('success'):
+                return result
+            saved = EffectLibrary().save(result['case_record'])
+            return {'success': True, 'case_id': saved['id'], 'result': 'Verified workflow saved: ' + saved['id']}
         # 连接诊断/修复：必须在 app 侧执行——连接坏了才需要它，绝不能走 bridge
         if tool_name in ("check_houdini_connection", "repair_houdini_connection"):
             return self._run_connection_tool(tool_name, kwargs)
@@ -4268,6 +4540,10 @@ class Controller(QObject):
                 except Exception:
                     pass
             return res
+        return self._dispatch_scene_tool(tool_name, kwargs)
+
+    def _dispatch_scene_tool(self, tool_name, kwargs):
+        """Preserve Bridge routing and embedded hou main-thread execution."""
         if getattr(self._session, "bridge", None) is not None:
             if getattr(self, "_houdini_connection", {}).get("paused"):
                 return {"success": False, "error": "Houdini 已手动断开，请从右上角连接菜单重新连接。"}
@@ -6633,7 +6909,7 @@ class Controller(QObject):
 
     def _ensure_think(self):
         if self._think_block is None:
-            self._think_block = {"kind": "thinking", "dur": "…", "text": ""}
+            self._think_block = {"kind": "thinking", "dur": "…", "text": "", "active": True}
             self._blocks.insert(0, self._think_block)
 
     def _ensure_exec(self):
@@ -6730,6 +7006,7 @@ class Controller(QObject):
         self.statusChanged.emit()
         self._clear_preview()
         if self._think_block is not None:
+            self._think_block["active"] = False
             try:
                 self._think_block["dur"] = "%.1fs" % (time.monotonic() - self._t0)
             except Exception:
@@ -6763,6 +7040,8 @@ class Controller(QObject):
         # persist the finished turn
         self._snapshot_active()
         self._save_all()
+        if (self._sessions[self._active].get('task_report') or {}).get('status') == 'incomplete':
+            self._pause_message_queue()
         if self._pending_plan_confirm:
             self._pending_plan_confirm = False
             if not err and self._plan_phase == "awaiting":

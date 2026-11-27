@@ -10,6 +10,7 @@ Item {
     property bool active: false
     property bool caret: false
     property bool accent: false
+    property bool filled: false
     property bool dashed: false
     property bool uppercase: false
     property bool elideLabel: false   // 标签随宽度省略号截断（用于可收缩布局）
@@ -23,7 +24,9 @@ Item {
         objectName: "pillBackground"
         anchors.fill: parent
         radius: height / 2
-        color: pill.active ? Theme.accentSoft : (ma.containsMouse ? Theme.surface : "transparent")
+        color: pill.active ? Theme.accentSoft
+             : pill.filled ? (ma.containsMouse ? Qt.lighter(Theme.surface2, Theme.light ? 0.96 : 1.12) : Theme.surface2)
+             : ma.containsMouse ? Theme.surface : "transparent"
         border.width: 0
         Behavior on color { ColorAnimation { duration: 120 } }
     }

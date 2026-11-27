@@ -43,6 +43,7 @@ ui_qml/
       PlanCard.qml
   controller.py               ChatModel (QAbstractListModel) + Controller (QObject bridge)
   host.py                     create_view() -> QQuickWidget (embed in Houdini PySide tree)
+  pane.py                     Houdini Python Panel 入口（面板 Tab / open_pane_tab）
   preview.py                  standalone launcher + mock data + selftest/capture
   fonts/                      (drop Fraunces / Newsreader / Space Mono / Noto Serif SC TTFs here)
 ```
@@ -77,6 +78,24 @@ layout.addWidget(view)
 `create_view` registers font fallbacks, injects `controller` + `chatModel` as
 context properties, and loads `Main.qml`. Targets PySide6 (Qt6); falls back to
 PySide2 imports for Houdini <= 20.5.
+
+### Pane tab (Python Panel)
+
+The same widget is what Houdini's Python Panel expects, so the chat can live in a
+real pane tab instead of a floating window:
+
+```python
+from houdini_agent.ui_qml import pane
+pane.open_pane_tab()        # install the .pypanel definition + open a tab
+# pane.reload_active_panel()  # hot-reload the interface script
+```
+
+`houdini_agent/houdini_package/python_panels/HoudiniAgent.pypanel` is picked up
+automatically through `$HOUDINI_PATH/python_panels`, so it also shows up in the
+pane's *New Pane Tab Type* menu. The `Controller`/`ChatModel` pair is a
+process-level singleton in `pane.py`: closing the tab keeps the conversation
+alive, and several Agent tabs share one session. Details and verification steps:
+[`Doc/PANE_TAB_EMBEDDING.md`](../../Doc/PANE_TAB_EMBEDDING.md).
 
 ## Status
 

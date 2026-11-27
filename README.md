@@ -4,9 +4,22 @@
 
 A standalone AI assistant for SideFX Houdini, featuring autonomous multi-turn tool calling, **Meshy AI 3D generation** (text/image→3D, concept galleries, image-to-image editing, retexture, remesh), a **cloud asset library**, web search, VEX/Python code execution, Plan mode for complex tasks, a brain-inspired long-term memory system, a plugin hook system for community extensions, user-defined context rules, and a modern **QML/Qt Quick** desktop UI with bilingual support.
 
-As of **v2.0**, Houdini Agent runs as a **standalone desktop app** that connects to a running Houdini over a lightweight **bridge** (no longer embedded in the Houdini process), with a completely rewritten **QML/Qt Quick** front-end (Mono Editorial design).
+As of **v2.0**, Houdini Agent runs as a **standalone desktop app** that connects to a running Houdini over a lightweight **bridge**. This branch uses a Codex-style QML/Qt Quick desktop layout and retains embedded Houdini entry points: a floating window, or a dockable Houdini pane tab.
 
 Built on the **OpenAI Function Calling** protocol, the agent can read node networks, create/modify/connect nodes, run VEX wrangles, generate and import 3D assets via Meshy, execute system shell commands, search the web, query local documentation, create structured execution plans, learn from past interactions, and be extended via plugins — all within an iterative agent loop. A centralized **ToolRegistry** unifies core tools, skills, and plugin tools with mode-based access control.
+
+## Recent Changes in This Fork
+
+This branch includes upstream **v2.1.2**. Linux adaptation lives on **`codex/linux-support`**; no prebuilt installer for this branch has been published.
+
+- **Upstream v2.1.2**: direct DeepSeek models, their OpenRouter counterparts, and newly discovered DeepSeek models default to image/viewport-input capability. Explicit cached capability metadata takes precedence; actual support depends on the endpoint.
+- **Standalone Linux launcher**: `start_houdini_agent.sh` targets Rocky Linux 9 x86_64 / X11 / Python 3.11+, discovers installations, installs Bridge packages, connects to ready sessions, and launches a selected Houdini version on request. [Setup](#linux-standalone-rocky-linux-9)
+- **Desktop and chat**: resizable session sidebar, history navigation, unified settings, Houdini status control, user-message copying/timestamps, failed-message recovery, and automatic thinking collapse. [UI guide](#qmlqt-quick-ui)
+- **Serial message queue**: send follow-ups while a request runs; stopped, failed, or restored queues require manual continuation. Multiple chats do not concurrently edit one Houdini session.
+- **Providers and memory**: unified configuration, provider-level validation with persisted results, an explicit `save_memory` tool, and manual memory creation. [Memory guide](#long-term-memory)
+- **Dockable pane tab**: the integration package ships a Python Panel definition, so the chat can live in a real Houdini pane tab that docks, splits, and persists with the desktop; the pane and the floating window share one session. [Details](Doc/PANE_TAB_EMBEDDING.md)
+
+Automated launcher, Bridge and QML tests have run in a real Linux Python/Qt environment, with Windows regressions also passing. Rocky 9 container CI is included; real Rocky 9 + Houdini graphics, licensing and scene operations still require machine validation.
 
 ## Core Features
 
@@ -41,7 +54,7 @@ User request → AI plans → call tools → inspect results → call more tools
 | **OpenAI** | `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5` | GPT-5.6 family (1M context), full Function Calling & Vision support |
 | **Duojie** (relay) | `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-sonnet-5`, `gpt-6.1-sol`, `gpt-6-sol`, `gpt-6-astra`, `grok-4.7`, `glm-5.3`, `glm-5.3-flash`, `glm-5.3-flashx`, `kiro-auto` | Claude, GPT, Grok, GLM via relay endpoint (list is discovered live from the relay's `/v1/models`) |
 | **OpenRouter** | `claude-opus-5.5`, `claude-sonnet-5.5`, `claude-haiku-5.5`, `claude-fable-5.1`, `claude-opus-5`, `gpt-6.1-sol`, `gpt-6-astra/luna`, `gpt-5.6-sol`, `gemini-4-argon`, `gemini-3.8-flash`, `deepseek-v4.1-flash`, `deepseek-v4-pro`, `glm-5.3`, `grok-4.7`, `kimi-k3`, `minimax-m3` | 17 models from all major providers via single API key |
-| **Custom** | User-configurable | Any OpenAI-compatible endpoint (LM Studio, vLLM, etc.); configurable URL, API Key, model name, context limit, vision & FC support |
+| **Custom** | User-configurable | Configurable OpenAI / Anthropic protocol, URL, API key, model list, context window and image capability |
 
 > **Automatic model catalog refresh** — Duojie, OpenRouter, OpenAI, DeepSeek and GLM model lists are discovered at runtime from each provider's `/v1/models` endpoint (cached for 6 hours, filtered down to chat models so image/embedding endpoints never show up). A stale cache is refreshed silently in the background on startup, and you can force a refresh from the **Providers** panel ("刷新模型"). When the network or API key is unavailable, the bundled static list is used unchanged.
 
@@ -49,17 +62,20 @@ User request → AI plans → call tools → inspect results → call more tools
 
 - **Multimodal messages** — attach images (PNG/JPG/GIF/WebP) to your messages for vision-capable models
 - **Paste & drag-drop** — `Ctrl+V` paste from clipboard, drag image files into the chat input
-- **File picker** — click the "Img" button to select images from disk
+- **File picker** — click the "+" button at the lower left of the composer to select images
 - **Image preview** — thumbnails displayed above the input box before sending, with remove buttons; **click any thumbnail to enlarge** in a full-size preview dialog
 - **Model-aware** — automatically checks if the current model supports vision; non-vision models show a clear warning
-- Supported: OpenAI GPT-5.5/5.6, Claude (all variants), Gemini, Grok
+- The catalog includes vision models from OpenAI, Claude, Gemini, Grok and others; v2.1.2 defaults DeepSeek to vision-capable, subject to endpoint support
 
-### QML/Qt Quick UI (Mono Editorial)
+### QML/Qt Quick UI
 
-The entire front-end was rewritten in **QML/Qt Quick** (`houdini_agent/ui_qml/`), driven by a slim Python `Controller` that streams agent state into a modular QML component library. The design is **Mono Editorial** — a near-black canvas with cream accents and bundled editorial fonts (Fraunces / Newsreader / Space Mono).
+The **QML/Qt Quick** front-end (`houdini_agent/ui_qml/`) receives streamed state from a Python `Controller`. This fork uses neutral themes, sans-serif text, a resizable session sidebar, centered chat content and a rounded multiline composer. Drag the sidebar boundary to resize without covering messages; hover the chat's right-hand navigation marks for prompt previews, or click to jump to earlier messages. Choose Agent / Ask / Plan beside the attachment button and the model beside Send. Reasoning effort shares the model popover and follows the existing subscription-provider/model support rules; unsupported routes hide it. Display-name capitalization does not change the model ID sent to the API.
 
-- Modern Mono Editorial dark theme with a collapsible **library drawer** + chat column layout
-- Collapsible blocks for thinking process, tool calls, node operations, and results
+- **Unified settings** — the gear at the bottom right of the session sidebar opens appearance, providers, rules, plugins and memory; `Ctrl+,` also opens settings. Meshy has a dedicated section for account configuration, assets and generation; prompt templates open from settings too
+- **Houdini status control** — the top-right dot and label are green when connected and red with a breathing brightness effect when disconnected. Open it to connect/switch ready Bridge sessions or launch an installed version. The cross beside refresh disconnects without closing Houdini and pauses automatic reconnection until you select a session again. Starting Agent connects to a ready Bridge without launching Houdini
+- Collapsible thinking, tool, node-operation and result blocks; thinking collapses when its stream finishes and is collapsed in history. Click the header to reopen; elapsed time uses integers, e.g. `8 min 35 s`
+- **Provider configuration** — list rows show a name, status dot and Configure button. The active provider is blue; others are green for validated, yellow for unverified, and red for missing/failed/busy. Hover a row to select Use; choose the model in the composer. Configure credentials, models and validation inside the provider page. One representative model (the first) validates the provider; unchanged account/endpoint settings reuse the locally persisted result. Changing credentials or endpoint requires a new check; successful chat requests also update status. Validation makes a separate request and may consume credits. Saved keys appear masked and remain unchanged unless edited
+- **Message queue** — Enter or Send during a run queues a follow-up with its own attachments, model, mode and reasoning setting. Cancel an item or return it to the composer above the input. Stop/errors pause the queue; Continue resumes it, after any pending plan confirmation. Queues persist with chats and require manual continuation after switching back or restarting
 - **Meshy generation cards** — live progress for text/image→3D, retexture, remesh; "run in background" button
 - **Concept gallery cards** — interactive multi-select galleries for concept-to-3D / text-to-image / image-to-image, with editable prompts, regenerate, second-pass editing, and escalate-to-3D
 - **Cloud asset library** — a side drawer listing your Meshy generation history with thumbnails; one-click import into Houdini, pagination, and account/balance display
@@ -67,17 +83,24 @@ The entire front-end was rewritten in **QML/Qt Quick** (`houdini_agent/ui_qml/`)
 - **Clickable node paths** — paths like `/obj/geo1/box1` in AI responses become links that navigate to the node in Houdini
 - **Node context bar** showing the currently selected Houdini node (read-only during Plan planning)
 - **Todo list** displayed above the chat area with live status icons
-- **Token analytics** — real-time token count, reasoning tokens, cache hit rate, and per-model cost estimates (click for detailed breakdown)
+- **Context usage** — the ring left of the model button shows usage; hover for used tokens and capacity. Capacity comes from the catalog or custom configuration and cannot confirm an undisclosed third-party endpoint limit
 - **Streaming VEX code preview** — real-time Cursor Apply-style code writing animation
-- Multi-session tabs — run multiple independent conversations
-- Copy button on AI responses; `Ctrl+Enter` to send messages
-- **Font scaling** — slider popup for live UI zoom; preference persisted
+- **Chat history** — search, create, switch and delete chats in the sidebar. Only one Agent request runs at a time; switching, creating and deleting chats is blocked during a run. Queue follow-ups in the current chat or stop before switching
+- User and AI messages support copying. User messages show send time with a full-date tooltip. `Enter` sends; `Shift+Enter` inserts a newline
+- **Failed-message recovery** — Return to input in the error block restores the original text and readable attachments for editing and resending. Missing attachments are reported; restoration does not resend automatically
+- **Appearance** — adjust font scale, font family, density, theme and accent in Settings → Appearance; preferences persist
 - **Bilingual UI** — Chinese/English language switching, with all UI elements and system prompts dynamically retranslated
-- **Update notification** — banner when a new version is detected, with "Update Now" and dismiss
+- **Update notification** — an Update button appears left of the sidebar settings gear when an update is available, and is hidden otherwise. Hover for version/status, follow download progress, or cancel while waiting to install. Packaged apps use the installer flow; source and embedded Houdini runs require source updates
 - **Management panel** — in-app Plugin Manager, Rules Editor, and long-term Memory browser
 - **IME support** — full Chinese/Japanese/Korean input method support on Windows and macOS
 
 ## Available Tools (50+)
+
+The effect workflow adds scene facts, bounded continuation, measurable acceptance checks,
+verified local recipes, semantic float controls, independent parameter variants and HDA
+export from a copy. Session hover tips identify the HIP name and path. See the
+[workflow and real HIP benchmark guide](Doc/EFFECT_WORKFLOW.md) for usage, budgets and
+validation limits. Structural or sampled checks do not establish full simulation or visual quality.
 
 ### Node Operations
 
@@ -199,6 +222,9 @@ The value is in the seam: Meshy generates the **seed asset**, Houdini procedural
 | Tool | Description |
 |------|-------------|
 | `search_memory` | Search the semantic memory store — retrieve relevant past experiences, rules, and strategies by category, abstraction level, and confidence scoring |
+| `save_memory` | Save preferences or experience explicitly requested by the user; returns a local memory ID, deduplicates identical content and needs no Houdini connection |
+
+Enable **Settings → General → Long-term memory**, then explicitly ask the Agent to remember something. You can also use **Settings → Memory → Add memory**, and inspect/delete saved records in the Semantic tab. Manual saving works with the toggle off; while disabled, the Agent neither reads/writes memories nor injects them into requests. Records live in `cache/memory/agent_memory.db`. When enabled, later requests load core preferences and relevant history. The current QML UI supports explicit saving and does not automatically summarize whole chats into memory.
 
 ### Plan Mode
 
@@ -228,11 +254,13 @@ Skills are pre-optimized Python scripts that run inside the Houdini environment 
 
 ```
 Houdini-Agent/
-├── launcher.py                      # Entry point — detects Houdini, routes to QML app (in-Houdini or standalone)
+├── launcher.py                      # Embedded Houdini / Windows source entry point
+├── start_houdini_agent.sh            # Linux standalone launch and --setup
+├── requirements-linux.txt           # Standalone Linux Python/Qt dependencies
 ├── README.md / README_CN.md
 ├── VERSION                          # Semantic version file (e.g. 2.0.0)
-├── HoudiniAgent.spec                # PyInstaller build spec (standalone app)
-├── build_installer.ps1              # Inno Setup installer build
+├── Houdini Agent.bat               # Windows double-click launcher
+├── installer/                       # PyInstaller spec, build and release scripts
 ├── lib/                             # Bundled dependencies (requests, urllib3, certifi, tiktoken, …)
 ├── assets/                          # App icon (houdini-agent.ico) and brand assets
 ├── config/                          # Runtime config (auto-created, gitignored)
@@ -256,7 +284,7 @@ Houdini-Agent/
 │       └── deploy_telemetry.py     #   deploy script
 ├── website/                         # Marketing homepage (houdini-agent.com)
 └── houdini_agent/                   # Main module
-    ├── ui_qml/                     # QML/Qt Quick front-end (Mono Editorial) — primary UI
+    ├── ui_qml/                     # QML/Qt Quick front-end (Codex-style) — primary UI
     │   ├── controller.py          # Controller (QObject) — QML⇄backend bridge, drives the agent loop,
     │   │                          #   streams signals, Meshy galleries, background tasks, cloud library
     │   ├── agent_session.py       # In-Houdini session backend (wraps AIClient + HoudiniMCP)
@@ -268,9 +296,11 @@ Houdini-Agent/
     │   ├── qml/
     │   │   ├── Main.qml           # Root window — library drawer + chat column
     │   │   └── HAgent/            # Component library
-    │   │       ├── Theme.qml      #   Mono Editorial palette / fonts / scale
+    │   │       ├── Theme.qml      #   Themes / accents / fonts / scale
     │   │       ├── ChatView.qml, MessageUser.qml, MessageAI.qml, Composer.qml, Header.qml,
-    │   │       │   SessionTabs.qml, ContextBar.qml, StatusBar.qml
+    │   │       │   Sidebar.qml, ChatTimeline.qml, ContextBar.qml, ContextUsage.qml
+    │   │       ├── SettingsWindow.qml, ProviderManager.qml, ModelPicker.qml, QueuedMessages.qml
+    │   │       ├── PanelTextArea.qml  # Input compatibility across Qt 6.8 and newer standalone Qt
     │   │       ├── ProseBlock.qml, CodeBlock.qml, CodePreviewBlock.qml, ThinkingBlock.qml,
     │   │       │   TodoBlock.qml, ShellBlock.qml, ExecBlock.qml, NodeOpRow.qml, ImageBlock.qml
     │   │       ├── MeshyCard.qml, ConceptGalleryCard.qml      # Meshy progress + interactive gallery
@@ -292,7 +322,7 @@ Houdini-Agent/
     ├── main.py                     # Legacy module entry (fallback)
     ├── shelf_tool.py               # Houdini shelf tool integration
     ├── qt_compat.py                # PySide2/PySide6 compatibility layer
-    ├── launcher/                   # Houdini discovery & launch (houdini_discovery.py)
+    ├── launcher/                   # houdini_discovery.py (cross-platform) / linux.py (standalone)
     ├── houdini_package/            # Bridge package payload installed into Houdini's packages/
     ├── skills/                     # Pre-built analysis scripts (auto-registered as skill:xxx tools)
     └── utils/
@@ -307,6 +337,7 @@ Houdini-Agent/
         ├── tool_registry.py       # Unified ToolRegistry — core/skill/plugin/user tools
         ├── rules_manager.py       # User Rules manager (UI + file rules, prompt injection)
         ├── memory_store.py        # Three-layer memory (episodic/semantic/procedural) with SQLite
+        ├── memory_tools.py        # save_memory / search_memory and memory context
         ├── embedding.py / reward_engine.py / reflection.py / growth_tracker.py  # Long-term memory system
         └── mcp/                   # Houdini MCP layer
             ├── client.py          # Tool executor (node ops, shell, skills dispatch, ToolRegistry fallback)
@@ -319,18 +350,19 @@ Houdini-Agent/
 
 ### Requirements
 
-- **Houdini 20.5+** (or 21+)
-- **Windows / macOS / Linux**
-- **Self-contained runtime** — the standalone app bundles Python and PySide6; no Python install, no pip
+- **Houdini 19.5+** with Bridge for scene operations; ordinary chat and local memory need no Houdini connection
+- **Windows** — prebuilt standalone installers bundle Python and PySide6
+- **Linux** — source launch on this branch targets Rocky Linux 9 x86_64 / X11 and requires Python 3.11+ plus Qt/X11 system libraries
+- **macOS** — existing platform code paths remain; this Linux work does not constitute validation of a standalone macOS release
 
 ### Install & launch
 
 Houdini Agent is now a **standalone desktop app** that connects to a running Houdini over a **bridge** (it no longer runs inside the Houdini process).
 
-1. Download the prebuilt Houdini Agent from [GitHub Releases](https://github.com/Kazama-Suichiku/Houdini-Agent/releases/latest), unzip and run it.
-2. The app auto-detects local Houdini (20.5+), installs the **bridge package** into Houdini's `packages/` directory, and offers "Open Houdini".
-3. Houdini auto-starts a **bridge server** on launch; the app connects via its **bridge client** automatically.
-4. Click **"API Key…"** in-app to save locally, or set an environment variable (below).
+1. Upstream [GitHub Releases](https://github.com/Kazama-Suichiku/Houdini-Agent/releases/latest) provides the original Windows installer. It does not include this fork's UI, queue, memory or Linux changes. Use this branch's source, or build it on Windows with `installer/build_houdini_agent_exe.ps1`, for the fork's features.
+2. Agent discovers Houdini 19.5+ and installs its **Bridge package**. Starting Agent never launches Houdini automatically; a ready Bridge is connected automatically.
+3. Use the top-right **Houdini** status control to connect/switch existing Bridge sessions or launch a selected version. After the first package installation, save and restart any Houdini that was already open without Bridge.
+4. Open the sidebar gear → **Settings → Models & Provider → Configure**. Enter a key or sign into a subscription provider, configure models and validate. Return to the list, hover and click Use, then select a model in the composer.
 
 All `hou.*` calls run on Houdini's main thread over the bridge, keeping things thread-safe.
 
@@ -341,14 +373,53 @@ All `hou.*` calls run on Houdini's main thread over the bridge, keeping things t
 > import launcher
 > launcher.show_tool()
 > ```
-> Or build the standalone app yourself with `build_houdini_agent_exe.ps1` (PyInstaller).
+> Or build the standalone app yourself with `installer/build_houdini_agent_exe.ps1` (PyInstaller).
+
+Source runs, including embedded Houdini panels, update through the current repository branch.
+They skip automatic installer-release checks; manual checks explain the source workflow.
+Packaged apps retain installer updates. The `VERSION` release label does not measure whether
+your Git branch is up to date.
+
+The Windows build uses a one-folder bundle, followed by a compressed Inno Setup installer.
+Qt bindings are collected explicitly; source bytecode caches and personal training exports
+are excluded. QML, fonts and the embedded Bridge/panel resources are retained. Use a clean
+build environment to avoid collecting optional machine-learning dependencies from your
+development environment. Local source users can simply launch `Houdini Agent.bat`.
+
+### Linux standalone (Rocky Linux 9)
+
+Linux work lives on `codex/linux-support` and targets Rocky Linux 9 x86_64, Python 3.11+ and an X11 desktop. Install system libraries with administrator privileges:
+
+```bash
+sudo dnf install -y python3.11 python3.11-pip \
+  libX11-xcb libxcb xcb-util-cursor xcb-util-image xcb-util-keysyms \
+  xcb-util-renderutil xcb-util-wm libxkbcommon-x11 libXrender libXi \
+  libXext libXfixes libSM libICE libXcomposite libXdamage \
+  mesa-libGL mesa-libEGL libglvnd-opengl glib2 fontconfig freetype dbus-libs google-noto-sans-cjk-fonts
+```
+
+From a user-writable checkout, install dependencies once, then launch:
+
+```bash
+cd /path/to/Houdini-Agent
+bash start_houdini_agent.sh --setup
+bash start_houdini_agent.sh
+```
+
+- Setup creates `.venv` in the project without modifying system Python. Set `HAGENT_PYTHON=/path/to/python3.11` to choose an interpreter.
+- Detection searches `/opt/hfs*`, `/opt/hfs/`, `/opt/sidefx/versions/`, `HFS` and `PATH`. Add `--houdini-root /studio/software` (repeatable), or set `HAGENT_HOUDINI_ROOTS=/path/one:/path/two` for custom locations.
+- Bridge packages go to `~/houdiniX.Y/packages/HoudiniAgent.json`; `HOUDINI_USER_PREF_DIR` and `__HVER__` are supported. A Houdini already open without Bridge must be saved and restarted after package installation.
+- Explicit Houdini launch sources that installation's `houdini_setup` and isolates the Agent's Python/Qt environment. Agent reconnects when a Bridge becomes ready again; manual disconnect pauses reconnection until you select a session.
+- `bash start_houdini_agent.sh --check` prints non-GUI runtime/install diagnostics. `--install-bridge` only installs packages. Graphical use requires a desktop display; choose an Xorg session for Houdini.
+
+Rocky 9 container CI is included. Automated tests with simulated Houdini/Bridge cannot replace real graphics, license and scene acceptance testing. See also the [Chinese guide](README_CN.md#rocky-linux-9-独立启动).
 
 ### Configure API Keys
 
 **Option A: Environment Variables (recommended)**
 
-   ```powershell
-   # DeepSeek
+```powershell
+# DeepSeek
 [Environment]::SetEnvironmentVariable('DEEPSEEK_API_KEY', 'sk-xxx', 'User')
    
 # GLM (Zhipu AI)
@@ -363,7 +434,9 @@ All `hou.*` calls run on Houdini's main thread over the bridge, keeping things t
 
 **Option B: In-app settings**
 
-Click the "Set API Key…" button and check "Save to local config".
+Open **Settings → Models & Provider → Configure**. Complete the form, then Save; Check can also be used directly and saves changed configuration before testing it, without leaving the page. Subscription entries use their sign-in flow. Saved keys appear as password dots when reopened.
+
+Built-in chat-provider keys are stored in `config/houdini_ai.ini`; custom providers use QSettings (`HKEY_CURRENT_USER\Software\HoudiniAI\Assistant`, `custom_providers` on Windows; normally `~/.config/HoudiniAI/Assistant.conf` on Linux, subject to Qt/XDG settings). These values are currently stored as plaintext; masking hides them only in the UI. Validation results also persist through QSettings. Environment variables remain an alternative for supported built-in providers.
 
 ## Architecture
 
@@ -401,7 +474,7 @@ The UI is **QML/Qt Quick** driven by a thin Python layer. The agent loop runs on
 | `BridgeAgentSession` | `ui_qml/bridge_session.py` | Standalone backend — same interface, but routes `hou.*` tool calls through `BridgeClient` to a running Houdini |
 | `host.py` / `app.py` / `external_app.py` | `ui_qml/` | QQuickWidget host (registers fonts), in-Houdini launcher, and standalone launcher respectively |
 
-QML components live in `ui_qml/qml/HAgent/`; `Theme.qml` centralizes the Mono Editorial palette, fonts, and scale.
+QML components live in `ui_qml/qml/HAgent/`; `Theme.qml` centralizes themes, accent colors, fonts and scale.
 
 ### Bridge (Standalone ⇄ Houdini)
 
@@ -584,7 +657,7 @@ Created attribwrangle1 with random Cd attribute on all points.
 ## Troubleshooting
 
 ### API Connection Issues
-- Use the "Test Connection" button to diagnose
+- Open the provider's Configure page under Settings → Models & Provider and click Check; changed valid forms are saved before checking, with no need to leave and reopen the page
 - Check that your API key is correct
 - Verify network access to the API endpoint
 
@@ -594,7 +667,8 @@ Created attribwrangle1 with random Cd attribute on all points.
 - A custom endpoint must point at a model with tool-calling support
 
 ### Node Operations Fail
-- Confirm you are running inside Houdini (not standalone Python)
+- Check for a green Houdini status control; the standalone UI operates through Bridge and does not need to run inside Houdini
+- If an open Houdini is missing from the list, ensure Bridge is loaded; save and restart Houdini after its first package installation
 - Check that node paths are absolute (e.g. `/obj/geo1/box1`)
 - Review the tool execution result for specific error messages
 
@@ -602,15 +676,26 @@ Created attribwrangle1 with random Cd attribute on all points.
 - Non-Houdini tools (shell, web) should run in the background thread
 - If the UI freezes during shell commands, update to the latest version
 
-### Updating
-- Click the **Update** button in the toolbar to check for new versions
-- The plugin checks GitHub on startup (silently) and shows an **update notification banner** above the input area if a new version is available
+### Updating This Fork from Source
+
+Save working-tree changes before fetching updates from this fork. An upstream installer does not preserve this fork's code changes. When merging upstream, retain the branch's custom changes. Rerun `bash start_houdini_agent.sh --setup` after Linux dependency changes, then restart Agent. Restart Houdini too after Bridge/package changes to load the new code.
+
+### Upstream Updater
+
+The following describes the original updater; check the update source before using it with this fork:
+
+- In the current UI, use **Settings → About → Check for updates**
+- Startup checks silently; an available update appears left of the sidebar settings button without consuming chat space
+- Click to enter the existing update flow; the button shows download progress and can cancel a queued installation, and is hidden when there is no update
 - One-click "Update Now" from the banner or toolbar button
 - Updates preserve your `config/`, `cache/`, `trainData/`, `plugins/`, and `rules/` directories
 - After updating, the plugin restarts automatically
 
 ## Version History
 
+- **This fork / `codex/linux-support`** — Codex-style UI, serial message queue, failed-message recovery, unified provider configuration/validation, explicit memory saving, automatic thinking collapse, and Rocky Linux 9 standalone/Bridge support. Follow branch commits; no separate version number has been released.
+- **v2.1.2 (merged)** — DeepSeek defaults to vision-capable in the model catalog, including direct, OpenRouter and newly discovered models; updated capability tests, version and website release records.
+- **v2.1.1 (merged)** — ChatGPT subscription (Codex) concept-image generation/editing, default image-model settings and image-model catalog sync.
 - **v2.0.1** — **In-place update now lands on the new QML UI**: Fixed "updated to 2.0 but still see the old UI". The legacy in-Houdini auto-updater (1.5.x) restarts via `houdini_agent.main.show_tool()`, which in 2.0.0 was the legacy PySide entry — so users who auto-updated in place stayed on the old UI. `main.show_tool()` now forwards to the embedded QML UI by default (`HAGENT_UI=legacy` to opt back); website downloads remain the standalone installer (different launch path). Also fixed the updater reporting "current version 0.0.0" when frozen (robust VERSION lookup), plus the offline pytest suite + CI.
 - **v2.0.0** — **Standalone app + QML rewrite + Meshy suite**: Houdini Agent becomes a **standalone desktop app** that connects to a running Houdini over a new **socket bridge** (`bridge/client.py` + `bridge/server.py`) — no longer embedded in the Houdini process; all `hou.*` calls stay main-thread-safe. The entire front-end was **rewritten in QML/Qt Quick** (`houdini_agent/ui_qml/`) with a Mono Editorial design, a slim `Controller` (QObject) driving the agent loop and streaming state to a modular QML component library, plus a `ChatModel` (`QAbstractListModel`). **Meshy suite expanded** to 11 tools — added `meshy_text_to_image` (parallel concept galleries, single/multi-direction), `meshy_image_to_image` (2D image-to-image / second-pass editing, auto-uses the attached image), and `meshy_task_status` (poll backgrounded tasks); all interactive tools pop a `ConceptGalleryCard` (multi-select, editable prompt, regenerate, escalate-to-3D). **Background tasks** — any long generation can be moved to the background; the result is auto-delivered as a fresh message and galleries auto-pop when the agent goes idle. **Cloud asset library** — a side drawer aggregating your Meshy generation history with thumbnails and one-click import, plus account/credit-balance display. **Anonymous usage telemetry** (opt-out) records per-task credit consumption to a pure-stdlib backend (`deploy/telemetry_server/`). New branded app/installer icon; PyInstaller + Inno Setup packaging.
 - **v1.6.0** — **Meshy 3D generation integration**: New self-contained `houdini_agent/meshy/` package adding text/image→3D, retexture, and remesh via the Meshy API, plus `import_3d_asset` (GLB import + auto Principled Shader from PBR maps) and `export_node_to_glb`. Network calls run app-side on the background thread; Houdini I/O runs on the main thread (in-process or over the bridge). Generation tools consume credits and are gated by confirm mode. Tools self-register via `ToolRegistry` handlers — core files (`agent_session`/`bridge_session`/`controller`/`bridge.server`) carry only minimal reference hooks. New `MeshyCard` QML block streams live generation progress; in-app key entry via ⋯ → Meshy API Key… (`MESHY_API_KEY`).

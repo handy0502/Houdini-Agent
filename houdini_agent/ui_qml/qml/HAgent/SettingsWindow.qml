@@ -24,6 +24,11 @@ Popup {
     width: Math.min(Math.round(720 * Theme.scale), parent ? parent.width - 18 : 720)
     height: Math.min(Math.round(560 * Theme.scale), parent ? parent.height - 18 : 560)
     padding: 0
+    // 弹窗尺寸是固定的：内容项必须跟着弹窗走，不能反过来被内容撑大。否则页面里
+    // ScrollView 的 contentHeight 会经由 contentItem.implicitHeight 回到弹窗尺寸，
+    // 形成 binding loop（页面内容的隐式高度 → 弹窗 → 页面可用高度 → contentHeight）。
+    contentWidth: availableWidth
+    contentHeight: availableHeight
     modal: true
     focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -72,6 +77,74 @@ Popup {
     // small flat text button
     component TButton: Pill {}
 
+    FontMetrics { id: dropdownMetrics; font.family: Theme.fontBody; font.pixelSize: Theme.fSm }
+    FontMetrics { id: dropdownCheckMetrics; font.family: Theme.fontMono; font.pixelSize: Theme.fSm }
+    function dropdownWidth(options) {
+        var longest = 0
+        for (var i = 0; i < options.length; i++)
+            longest = Math.max(longest, dropdownMetrics.advanceWidth(options[i].label))
+        // Reserve space for both the field arrow and a checked popup option.
+        var padding = Math.max(dropdownMetrics.font.pixelSize * 4,
+            40 + Math.max(dropdownCheckMetrics.font.pixelSize, dropdownCheckMetrics.advanceWidth("✓")))
+        return Math.ceil(longest + padding)
+    }
+
+    component SettingDropdown: Rectangle {
+        id: selector
+        property var options: []
+        property string current: ""
+        property real sharedWidth: 0
+        property string menuObjectName: objectName + "Menu"
+        readonly property string label: {
+            for (var i = 0; i < options.length; i++)
+                if (options[i].key === current) return options[i].label
+            return ""
+        }
+        signal picked(string key)
+        implicitWidth: sharedWidth > 0 ? sharedWidth : win.dropdownWidth(options)
+        implicitHeight: Theme.controlHeight
+        radius: height / 2; color: selectorArea.containsMouse ? Theme.surface : Theme.surface2
+        activeFocusOnTab: true
+        function openMenu() {
+            selectorMenu.items = selector.options.map(function(item) {
+                return {label: item.label, val: item.key, checked: item.key === selector.current}
+            })
+            selectorMenu.open()
+        }
+        Keys.onSpacePressed: openMenu()
+        Keys.onReturnPressed: openMenu()
+        Text {
+            objectName: selector.objectName + "Label"
+            anchors.left: parent.left; anchors.leftMargin: Theme.fs(12)
+            anchors.right: indicator.left; anchors.rightMargin: Theme.fs(8)
+            anchors.verticalCenter: parent.verticalCenter
+            text: selector.label; elide: Text.ElideRight
+            color: Theme.textDim; font.family: Theme.fontBody; font.pixelSize: Theme.fSm
+        }
+        AppIcon {
+            id: indicator
+            objectName: selector.objectName + "Indicator"
+            anchors.right: parent.right; anchors.rightMargin: Theme.fs(8)
+            anchors.verticalCenter: parent.verticalCenter
+            width: Theme.fs(14); height: width
+            name: "chevronDown"; color: Theme.textMute
+        }
+        MouseArea {
+            id: selectorArea
+            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+            onClicked: selector.openMenu()
+        }
+        MenuPopup {
+            id: selectorMenu
+            objectName: selector.menuObjectName
+            parent: selector
+            x: 0; width: selector.width
+            menuWidth: Math.max(0, Math.round(selector.width - leftPadding - rightPadding))
+            aboveAnchor: true; checkable: true
+            onPicked: function(val) { selector.picked(val) }
+        }
+    }
+
     // 选项胶囊（可带圆形色块）
     component OptChip: Rectangle {
         id: chip
@@ -119,6 +192,9 @@ Popup {
         property string desc: ""
         property var model: []
         property string current: ""
+        property bool dropdown: false
+        property real dropdownWidth: 0
+        property string selectorName: ""
         signal picked(string key)
         Layout.fillWidth: true
         spacing: 0
@@ -127,16 +203,17 @@ Popup {
             Text { text: secRoot.name; color: Theme.text
                    font.family: Theme.fontBody; font.pixelSize: Theme.fBody }
             Text {
-                visible: secRoot.desc.length > 0; text: secRoot.desc
+                visible: secRoot.desc.length > 0; text: secRoot.desc.replace(/[。.]$/, "")
                 Layout.fillWidth: true
                 color: Theme.textMute; font.family: Theme.fontBody; font.pixelSize: Theme.fXs
                 wrapMode: Text.Wrap; lineHeight: 1.35
             }
         }
         Flow {
+            visible: !secRoot.dropdown
             Layout.fillWidth: true; Layout.topMargin: Theme.sp(10); Layout.bottomMargin: Theme.sp(14); spacing: Theme.sp(6)
             Repeater {
-                model: secRoot.model
+                model: secRoot.dropdown ? [] : secRoot.model
                 delegate: OptChip {
                     required property var modelData
                     objectName: "appearanceOption_" + modelData.key
@@ -147,6 +224,16 @@ Popup {
                     onClicked: secRoot.picked(modelData.key)
                 }
             }
+        }
+        SettingDropdown {
+            objectName: secRoot.selectorName
+            visible: secRoot.dropdown
+            Layout.alignment: Qt.AlignLeft
+            Layout.topMargin: Theme.sp(10); Layout.bottomMargin: Theme.sp(14)
+            options: secRoot.model
+            sharedWidth: secRoot.dropdownWidth
+            current: secRoot.current
+            onPicked: function(key) { secRoot.picked(key) }
         }
         Rectangle { Layout.fillWidth: true; height: 1; color: Theme.borderSoft }
     }
@@ -189,7 +276,9 @@ Popup {
                 anchors.margins: Theme.sp(10)
                 clip: true
                 contentWidth: availableWidth
+                contentImplicitHeight: navColumn.implicitHeight
                 ColumnLayout {
+                    id: navColumn
                     width: navigationScroll.availableWidth
                     spacing: Theme.sp(2)
                     Repeater {
@@ -292,11 +381,15 @@ Popup {
                 // 配置类分区：可滚动的字段列
                 PanelScrollView {
                     id: scroll
+                    objectName: "settingsPageScroll"
                     anchors.fill: parent
                     visible: !bodyArea.isMgmt && !bodyArea.isProviders
                     clip: true
                     contentWidth: availableWidth
+                    // 内容随分区切换/字段增减而变高，ScrollView 不会自己重新测量
+                    contentImplicitHeight: pageContent.implicitHeight
                     Item {
+                        id: pageContent
                         width: scroll.availableWidth
                         implicitHeight: secCol.implicitHeight + Theme.panelPadding * 2
                         ColumnLayout {
@@ -482,12 +575,14 @@ Popup {
             SectionTitle { text: win.loc("常规") }
             FieldRow {
                 name: win.loc("语言 / Language")
-                RowLayout {
-                    spacing: 6
-                    Pill { label: "中文"; active: controller && controller.lang === "zh"
-                        onClicked: if (controller && controller.lang !== "zh") controller.menuAction("lang_toggle") }
-                    Pill { label: "English"; active: controller && controller.lang === "en"
-                        onClicked: if (controller && controller.lang !== "en") controller.menuAction("lang_toggle") }
+                SettingDropdown {
+                    objectName: "languageSelector"
+                    menuObjectName: "languageMenu"
+                    options: [{key: "zh", label: "中文"}, {key: "en", label: "English"}]
+                    current: controller ? controller.lang : "zh"
+                    onPicked: function(key) {
+                        if (controller && controller.lang !== key) controller.menuAction("lang_" + key)
+                    }
                 }
             }
         }
@@ -496,6 +591,18 @@ Popup {
     Component {
         id: cAppearance
         ColumnLayout {
+            id: appearanceRoot
+            property var fontOptions: [
+                {key: "editorial", label: win.loc("编辑体")},
+                {key: "modern", label: win.loc("现代")},
+                {key: "mono", label: win.loc("等宽")}
+            ]
+            property var densityOptions: [
+                {key: "compact", label: win.loc("紧凑")},
+                {key: "normal", label: win.loc("标准")},
+                {key: "roomy", label: win.loc("宽松")}
+            ]
+            readonly property real selectorWidth: win.dropdownWidth(fontOptions.concat(densityOptions))
             spacing: 0
             SectionTitle { text: win.loc("外观") }
             OptSection {
@@ -525,29 +632,25 @@ Popup {
             }
             OptSection {
                 name: win.loc("字体方案")
+                dropdown: true; selectorName: "fontFamilySelector"
+                dropdownWidth: appearanceRoot.selectorWidth
                 desc: win.loc("标题 / 正文 / 等宽三件套的整体气质。")
                 current: controller ? controller.fontFamilyKey : "modern"
-                model: [
-                    { key: "editorial", label: win.loc("编辑体") },
-                    { key: "modern",    label: win.loc("现代") },
-                    { key: "mono",      label: win.loc("等宽") }
-                ]
+                model: appearanceRoot.fontOptions
                 onPicked: function(k) { if (controller) controller.setFontFamilyKey(k) }
             }
             OptSection {
                 name: win.loc("界面密度")
+                dropdown: true; selectorName: "densitySelector"
+                dropdownWidth: appearanceRoot.selectorWidth
                 desc: win.loc("间距与行高的松紧，不改字号。")
                 current: controller ? controller.densityKey : "normal"
-                model: [
-                    { key: "compact", label: win.loc("紧凑") },
-                    { key: "normal",  label: win.loc("标准") },
-                    { key: "roomy",   label: win.loc("宽松") }
-                ]
+                model: appearanceRoot.densityOptions
                 onPicked: function(k) { if (controller) controller.setDensityKey(k) }
             }
             FieldRow {
                 name: win.loc("界面字号")
-                desc: win.loc("调整整个面板的字号缩放。")
+                desc: win.loc("调整整个面板的字号缩放。").replace(/[。.]$/, "")
                 RowLayout {
                     spacing: Theme.sp(4)
                     IconButton {

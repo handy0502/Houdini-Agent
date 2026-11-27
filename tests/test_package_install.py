@@ -2,6 +2,7 @@
 """集成包安装：用户目录多候选解析（文档重定向）、按版本并集装包、pythonrc 防重入与 shim。"""
 import json
 import sys
+import os
 from pathlib import Path
 
 import pytest
@@ -60,7 +61,7 @@ def test_install_package_for_version_writes_all_candidates(monkeypatch, tmp_path
         assert pkg.is_file()
         data = json.loads(pkg.read_text(encoding="utf-8"))
         envs = {k: v for e in data["env"] for k, v in e.items()}
-        assert envs["HOUDINI_PATH"].endswith("houdini_package;&")
+        assert envs["HOUDINI_PATH"].endswith("houdini_package" + os.pathsep + "&")
 
 
 def test_install_all_packages_unions_versions(monkeypatch, tmp_path):

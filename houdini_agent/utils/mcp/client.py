@@ -1208,6 +1208,13 @@ class HoudiniMCP(NetworkInspectMixin, NodeOpsMixin, ParamOpsMixin, ExecOpsMixin,
         "execute_python": "_tool_execute_python",
         "execute_shell": "_tool_execute_shell",
         "check_errors": "_tool_check_errors",
+        "verify_and_summarize": "_tool_verify_and_summarize",
+        "create_effect_controls": "_tool_create_effect_controls",
+        "create_effect_variants": "_tool_create_effect_variants",
+        "package_effect": "_tool_package_effect",
+        "get_scene_facts": "_tool_scene_facts",
+        "search_effect_cases": "_tool_search_effect_cases",
+        "save_effect_case": "_tool_save_effect_case",
         "search_local_doc": "_tool_search_local_doc",
         "get_houdini_node_doc": "_tool_get_houdini_node_doc",
         "get_node_inputs": "_tool_get_node_inputs",
@@ -1225,6 +1232,7 @@ class HoudiniMCP(NetworkInspectMixin, NodeOpsMixin, ParamOpsMixin, ExecOpsMixin,
         "perf_stop_and_report": "_tool_perf_stop_and_report",
         # 长期记忆主动搜索
         "search_memory": "_tool_search_memory",
+        "save_memory": "_tool_save_memory",
         # 视口截图
         "capture_viewport": "_tool_capture_viewport",
     }
@@ -1373,85 +1381,44 @@ class HoudiniMCP(NetworkInspectMixin, NodeOpsMixin, ParamOpsMixin, ExecOpsMixin,
     # 长期记忆主动搜索
     # ========================================
 
+    def _tool_scene_facts(self, args):
+        from .effects import scene_facts
+        return scene_facts(self, args, hou)
+
+    def _tool_create_effect_controls(self, args):
+        from .effect_controls import create_controls
+        return create_controls(args, hou)
+
+    def _tool_package_effect(self, args):
+        from .effect_controls import package_effect
+        return package_effect(self, args, hou)
+
+    def _tool_create_effect_variants(self, args):
+        from .effect_controls import create_variants
+        return create_variants(self, args, hou)
+
+    def _tool_search_effect_cases(self, args):
+        from ..effect_library import EffectLibrary
+        import json
+        cases = EffectLibrary().search(str(args.get('query', '')), str(args.get('project', '')),
+                                       str(args.get('version', '')), args.get('limit', 3))
+        return {'success': True, 'cases': cases, 'result': json.dumps(cases, ensure_ascii=False)}
+
+    def _tool_save_effect_case(self, args):
+        from .effects import save_case
+        return save_case(self, args, hou)
+
+    def _tool_verify_and_summarize(self, args):
+        from .verification import verify
+        return verify(self, args, hou_module=hou)
+
     def _tool_search_memory(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """搜索长期记忆库 — 跨层级 chunk 检索"""
-        query = args.get("query", "")
-        print(f"[search_memory] 收到搜索请求: query={query!r}, args={args}")
-        # ★ 防御性守卫：若全局记忆开关关闭，直接返回空结果，
-        #   防止 agent 绕过工具过滤（例如缓存到的旧 schema）读取记忆。
-        try:
-            from houdini_agent.qt_compat import QSettings
-            _s = QSettings("HoudiniAI", "Assistant")
-            _enabled = _s.value("memory_enabled", False)
-            if isinstance(_enabled, str):
-                _enabled = _enabled.lower() == 'true'
-            if not bool(_enabled):
-                return {
-                    "success": True,
-                    "count": 0,
-                    "memories": [],
-                    "message": "长期记忆系统当前已禁用（用户已在设置中关闭）。",
-                }
-        except Exception:
-            pass
-        if not query:
-            return {"success": False, "error": "query 参数不能为空"}
+        from ..memory_tools import search_memory
+        return search_memory(args)
 
-        category = args.get("category")
-        top_k = min(max(args.get("top_k", 5), 1), 10)
-
-        try:
-            from ..memory_store import get_memory_store, ABSTRACTION_LEVELS
-            store = get_memory_store()
-            total = store.count_semantic()
-            print(f"[search_memory] 记忆库中有 {total} 条语义记忆")
-
-            results = store.search_all_levels(
-                query=query,
-                category=category,
-                top_k=top_k,
-                min_confidence=0.1,
-            )
-            print(f"[search_memory] 搜索结果: {len(results)} 条")
-
-            if not results:
-                return {
-                    "success": True,
-                    "count": 0,
-                    "memories": [],
-                    "message": f"未找到相关记忆（库中共 {total} 条语义记忆，min_confidence=0.1）",
-                }
-
-            memories = []
-            for rec, score in results:
-                level_name = ABSTRACTION_LEVELS.get(rec.abstraction_level, "unknown")
-                memories.append({
-                    "rule": rec.rule,
-                    "category": rec.category,
-                    "abstraction_level": rec.abstraction_level,
-                    "level_name": level_name,
-                    "confidence": round(rec.confidence, 2),
-                    "relevance": round(score, 3),
-                    "activation_count": rec.activation_count,
-                })
-
-            # 更新激活计数
-            for rec, _ in results:
-                try:
-                    store.increment_semantic_activation(rec.id)
-                except Exception:
-                    pass
-
-            return {
-                "success": True,
-                "count": len(memories),
-                "query": query,
-                "category_filter": category,
-                "memories": memories,
-            }
-
-        except Exception as e:
-            return {"success": False, "error": f"记忆搜索失败: {str(e)}"}
+    def _tool_save_memory(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        from ..memory_tools import save_memory
+        return save_memory(args)
 
     # ========================================
     # 视口截图

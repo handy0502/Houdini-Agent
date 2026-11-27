@@ -23,6 +23,18 @@ Item {
     property string skillDir: ""
     property bool ruleDirty: false
     property string statText: ""
+    property string memoryCategory: "preference"
+    property var memoryCategories: [
+        {key: "preference", label: loc("偏好")}, {key: "user_profile", label: loc("个人信息")},
+        {key: "command", label: loc("常用命令")}, {key: "debug", label: loc("调试经验")},
+        {key: "pitfall", label: loc("注意事项")}, {key: "workflow", label: loc("工作流程")},
+        {key: "knowledge", label: loc("知识")}, {key: "general", label: loc("其他")}
+    ]
+    function categoryLabel() {
+        for (var i = 0; i < memoryCategories.length; i++)
+            if (memoryCategories[i].key === memoryCategory) return memoryCategories[i].label
+        return ""
+    }
 
     function loc(s) { if (controller && controller.lang) return controller.tr(s); return s }
     function refresh() {
@@ -262,7 +274,7 @@ Item {
                         color: Theme.codeBg
                         border.color: ruleBody.activeFocus ? Theme.accentLine : Theme.border
                         border.width: 1; radius: Theme.radSm
-                        TextArea {
+                        PanelTextArea {
                             id: ruleBody
                             objectName: "ruleContentEditor"
                             anchors.fill: parent; anchors.margins: 11
@@ -350,6 +362,20 @@ Item {
             }
         }
 
+        RowLayout {
+            visible: mc.mode === "memory"
+            Layout.fillWidth: true; Layout.bottomMargin: Theme.sp(8)
+            Text {
+                Layout.fillWidth: true
+                text: controller && !controller.memoryEnabled ? mc.loc("长期记忆已关闭，开启后用于后续对话") : ""
+                color: Theme.textMute; font.family: Theme.fontBody; font.pixelSize: Theme.fXs; wrapMode: Text.Wrap
+            }
+            Pill {
+                objectName: "addMemoryButton"
+                label: "+ " + mc.loc("新增记忆")
+                onClicked: { memoryContent.text = ""; mc.memoryCategory = "preference"; memoryEditor.open() }
+            }
+        }
         // ---- memory ----
         ListView {
             visible: mc.mode === "memory"
@@ -381,6 +407,63 @@ Item {
         id: skillDirDialog
         title: mc.loc("选择用户脚本目录")
         onAccepted: { if (controller) controller.setUserSkillDir("" + selectedFolder); mc.refresh() }
+    }
+
+    Popup {
+        id: memoryEditor
+        objectName: "memoryEditor"
+        parent: Overlay.overlay; anchors.centerIn: parent
+        width: Math.min(Theme.fs(460), parent ? parent.width - Theme.sp(32) : Theme.fs(460))
+        padding: Theme.panelPadding; modal: true; focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        background: Rectangle { color: Theme.panel; border.color: Theme.border; radius: Theme.radMd }
+        contentItem: ColumnLayout {
+            spacing: Theme.sp(12)
+            Text { text: mc.loc("新增记忆"); color: Theme.textBright; font.family: Theme.fontDisplay; font.pixelSize: Theme.fLg }
+            Pill {
+                objectName: "memoryCategorySelector"
+                label: mc.categoryLabel(); caret: true
+                onClicked: {
+                    memoryCategoryMenu.items = mc.memoryCategories.map(function(item) {
+                        return {label: item.label, val: item.key, checked: item.key === mc.memoryCategory}
+                    })
+                    memoryCategoryMenu.open()
+                }
+                MenuPopup {
+                    id: memoryCategoryMenu; objectName: "memoryCategoryMenu"
+                    menuWidth: Theme.fs(150); maximumHeight: memoryEditor.parent ? memoryEditor.parent.height * 0.5 : 250
+                    aboveAnchor: true; checkable: true
+                    onPicked: function(key) { mc.memoryCategory = key }
+                }
+            }
+            PanelScrollView {
+                id: memoryInputScroll
+                Layout.fillWidth: true; Layout.preferredHeight: Theme.fs(140)
+                contentWidth: availableWidth
+                PanelTextArea {
+                    id: memoryContent; objectName: "memoryContentInput"
+                    width: memoryInputScroll.availableWidth
+                    placeholderText: mc.loc("写下希望跨会话保留的偏好或经验")
+                    wrapMode: TextEdit.Wrap; color: Theme.textBright
+                    font.family: Theme.fontBody; font.pixelSize: Theme.fSm
+                    background: Rectangle { color: Theme.fieldBg; radius: Theme.radSm }
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Item { Layout.fillWidth: true }
+                Pill { label: mc.loc("取消"); onClicked: memoryEditor.close() }
+                Pill {
+                    objectName: "saveMemoryButton"
+                    label: mc.loc("保存"); accent: true
+                    enabled: memoryContent.text.trim().length > 0 && memoryContent.text.trim().length <= 4000
+                    opacity: enabled ? 1 : 0.4
+                    onClicked: if (controller && controller.addMemory(memoryContent.text, mc.memoryCategory)) {
+                        memoryEditor.close(); mc.tab = 1; mc.refresh()
+                    }
+                }
+            }
+        }
     }
 
     Popup {

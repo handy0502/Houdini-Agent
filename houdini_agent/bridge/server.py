@@ -4,6 +4,7 @@
 import json
 import os
 import sys
+import socket
 import socketserver
 import threading
 import traceback
@@ -14,6 +15,36 @@ from .client import DEFAULT_HOST, DEFAULT_PORT, port_file
 _SERVER = None
 _THREAD = None
 _MCP = None
+_SESSION_META = {}
+_SESSION_CALLBACK = None
+
+
+def _refresh_session_metadata(*args, **kwargs):
+    """Called on Houdini's main thread; heartbeat workers only read the cache."""
+    global _SESSION_META
+    try:
+        import hou
+        path = str(hou.hipFile.path()).replace("\\", "/")
+        _SESSION_META = {"hip_path": path, "hip_name": path.rsplit("/", 1)[-1],
+                         "unsaved": bool(hou.hipFile.isNewFile()), "pid": os.getpid()}
+    except Exception:
+        _SESSION_META = {}
+
+
+def _watch_session_metadata():
+    global _SESSION_CALLBACK
+    _refresh_session_metadata()
+    if _SESSION_CALLBACK is None:
+        try:
+            import hou
+            def changed(event_type, **kwargs):
+                if event_type in (hou.hipFileEventType.AfterLoad, hou.hipFileEventType.AfterSave,
+                                  hou.hipFileEventType.AfterClear, hou.hipFileEventType.AfterMerge):
+                    _refresh_session_metadata()
+            hou.hipFile.addEventCallback(changed)
+            _SESSION_CALLBACK = changed
+        except Exception:
+            pass
 
 
 def _log(msg):
@@ -248,7 +279,7 @@ class _Handler(socketserver.StreamRequestHandler):
             payload = req.get("payload") or {}
             if action == "ping":
                 import hou
-                result = {"status": "ok", "houdini": hou.applicationVersionString()}
+                result = dict(_SESSION_META, status="ok", houdini=hou.applicationVersionString())
             elif action == "scene_context":
                 result = _main_thread(_scene_context)
             elif action == "execute_tool":
@@ -268,8 +299,16 @@ class _Handler(socketserver.StreamRequestHandler):
 
 
 class _Server(socketserver.ThreadingMixIn, socketserver.TCPServer):
-    allow_reuse_address = True
+    # Windows SO_REUSEADDR lets separate Houdini processes listen on the SAME
+    # port. Discovery then sees one session, and requests can reach either one.
+    # POSIX reuse only permits a quick restart after TIME_WAIT, so keep it there.
+    allow_reuse_address = os.name != "nt"
     daemon_threads = True
+
+    def server_bind(self):
+        if os.name == "nt":
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
 
 def _write_port_file(port):
@@ -312,6 +351,7 @@ def start_bridge(host=DEFAULT_HOST, port=None):
         print(msg)
         return None
     _write_port_file(bound)
+    _watch_session_metadata()
     _THREAD = threading.Thread(target=_SERVER.serve_forever, name="HoudiniAgentBridge", daemon=True)
     _THREAD.start()
     _log("Bridge listening on %s:%s root=%s" % (host, bound, Path(__file__).resolve().parents[2]))

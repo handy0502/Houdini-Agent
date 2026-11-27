@@ -52,3 +52,4 @@ ProviderManager ProviderManager.qml
 TrashIcon TrashIcon.qml
 EmptyState EmptyState.qml
 TemplateLibrary TemplateLibrary.qml
+PanelTextArea 1.0 PanelTextArea.qml

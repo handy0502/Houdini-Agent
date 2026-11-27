@@ -4,9 +4,23 @@
 
 独立运行的 SideFX Houdini AI 智能助手，支持自主多轮工具调用、**Meshy AI 3D 生成**（文/图生 3D、概念图画廊、图生图/二次编辑、重打材质、重拓扑）、**云资产库**、联网搜索、VEX/Python 代码执行、Plan 模式规划复杂任务、大脑启发式长期记忆系统、插件 Hook 系统支持社区扩展、用户自定义上下文规则，配备现代 **QML/Qt Quick** 桌面 UI 与双语支持。
 
-从 **v2.0** 起，Houdini Agent 以**独立桌面程序**形式运行，通过轻量 **Bridge** 连接正在运行的 Houdini（不再嵌入 Houdini 进程内），前端完全用 **QML/Qt Quick** 重写（Mono Editorial 设计风格）。
+从 **v2.0** 起，Houdini Agent 以**独立桌面程序**形式运行，通过轻量 **Bridge** 连接正在运行的 Houdini。当前分支采用接近 Codex 的 QML/Qt Quick 桌面布局；也保留 Houdini 内嵌启动入口：浮动窗口，或可停靠的面板 Tab。
 
 基于 **OpenAI Function Calling** 协议，Agent 可以读取节点网络、创建/修改/连接节点、编写 VEX Wrangle、用 Meshy 生成并导入 3D 资产、执行系统命令、联网搜索、查询本地文档、创建结构化执行计划、从历史交互中持续学习、通过插件扩展能力 —— 全部在自主循环中迭代完成。统一的 **ToolRegistry** 集中管理核心工具、技能脚本和插件工具，支持基于模式的访问控制。
+
+## 当前分支近期更新
+
+当前代码已合入上游 **v2.1.2**；Linux 适配集中在 **`codex/linux-support`** 分支，尚无该分支专用的预构建安装包。
+
+- **上游 v2.1.2**：DeepSeek 直连、OpenRouter 对应模型以及动态发现的新 DeepSeek 模型默认识别为支持图片输入和视口截图。显式缓存的能力信息仍优先于默认推断，实际请求能力取决于使用的接口。
+- **独立 Linux 启动**：新增 `start_houdini_agent.sh`，目标为 Rocky Linux 9 x86_64 / X11 / Python 3.11+；支持安装目录发现、Bridge 自动安装、连接已打开的会话，以及由用户选择版本启动 Houdini。[安装步骤](#rocky-linux-9-独立启动)
+- **桌面与会话体验**：可调宽侧栏、历史消息导航、统一设置、连接状态按钮、消息复制与发送时间、失败消息退回输入框；思考结束后自动折叠。[界面说明](#qmlqt-quick-桌面界面)
+- **串行消息队列**：运行中继续发送可排队；停止、失败或恢复历史会话后的队列需手动继续，避免多个对话同时修改同一个 Houdini。
+- **供应商与记忆**：统一配置入口、供应商级验证及本地结果复用；新增 `save_memory` 工具和手动新增记忆入口。[记忆用法](#长期记忆)
+- **面板 Tab 内嵌**：集成包自带 Python Panel 定义，对话面板可作为 Houdini 面板 Tab 停靠、拆分并随 desktop 保存；面板与浮动窗口共用同一份会话。[说明](Doc/PANE_TAB_EMBEDDING.md)
+- **效果验收与复用**：场景事实读取、有限续执行、可测量验收、已验证案例、语义参数、独立参数变体与保留源网络的 HDA 导出；会话悬浮可查看 HIP 名称与路径。[用法与真实 HIP 回归](Doc/EFFECT_WORKFLOW.md)
+
+Linux 启动、Bridge 和 QML 已在真实 Linux Python/Qt 环境运行自动回归，Windows 相关回归也已通过；Rocky 9 容器 CI 已加入，真实 Rocky 9 + Houdini 的显卡、许可证和场景操作仍待实机验收。
 
 ## 核心特性
 
@@ -16,7 +30,7 @@ AI 以自主 **Agent 循环** 运行：接收用户请求 → 规划步骤 → �
 
 - **Agent 模式** — 完整权限，AI 可以使用全部 50+ 工具，创建、修改、连接、删除节点，设置参数，执行脚本，生成并导入 3D 资产，保存场景。
 - **Ask 模式** — 只读模式，AI 只能查询场景结构、检查参数、搜索文档和提供分析。所有修改类工具被 `ToolRegistry` 模式守卫拦截。
-- **Plan 模式** — AI 进入规划阶段：只读调研当前场景，通过 `ask_question` 澄清需求，然后生成带 DAG 流程图的结构化执行计划。用户审核确认后方可执行。内置 **自动续接机制**，检测 AI 过早终止并强制继续执行直到所有步骤完成。
+- **Plan 模式** — AI 进入规划阶段：只读调研当前场景，通过 `ask_question` 澄清需求，然后生成带 DAG 流程图的结构化执行计划。用户审核确认后方可执行。执行阶段检测过早终止并有限续接；无进展或超出预算时报告未完成。
 
 ```
 用户请求 → AI 规划 → 调用工具 → 检查结果 → 调用更多工具 → … → 最终回复
@@ -41,7 +55,7 @@ AI 以自主 **Agent 循环** 运行：接收用户请求 → 规划步骤 → �
 | **OpenAI** | `gpt-5.6-sol`、`gpt-5.6-terra`、`gpt-5.6-luna`、`gpt-5.5` | GPT-5.6 系列（1M 上下文），完整 Function Calling 与 Vision 支持 |
 | **拼好饭**（中转） | `claude-opus-5-5`、`claude-sonnet-5-5`、`claude-sonnet-5`、`gpt-6.1-sol`、`gpt-6-sol`、`gpt-6-astra`、`grok-4.7`、`glm-5.3`、`glm-5.3-flash`、`glm-5.3-flashx`、`kiro-auto` | 通过中转接口使用 Claude、GPT、Grok、GLM（清单从站点实时 `/v1/models` 自动发现） |
 | **OpenRouter** | `claude-opus-5.5`、`claude-sonnet-5.5`、`claude-haiku-5.5`、`claude-fable-5.1`、`claude-opus-5`、`gpt-6.1-sol`、`gpt-6-astra/luna`、`gpt-5.6-sol`、`gemini-4-argon`、`gemini-3.8-flash`、`deepseek-v4.1-flash`、`deepseek-v4-pro`、`glm-5.3`、`grok-4.7`、`kimi-k3`、`minimax-m3` 共 17 个 | 通过单一 API Key 使用所有主流提供商的模型 |
-| **自定义** | 用户可配置 | 任何 OpenAI 兼容端点（LM Studio、vLLM 等）；可配置 URL、API Key、模型名、上下文限制、Vision 和 FC 支持 |
+| **自定义** | 用户可配置 | 支持 OpenAI / Anthropic 协议配置；可填写 URL、API Key、模型列表、上下文窗口与图片能力 |
 
 > **模型目录自动刷新** —— 拼好饭、OpenRouter、OpenAI、DeepSeek、GLM 的模型列表会在运行时从各自的 `/v1/models` 拉取（缓存 6 小时，并自动过滤掉图片、嵌入等非对话模型）。启动时若缓存过期会后台静默刷新；也可以在「供应商管理」面板点「刷新模型」手动刷新。网络或 API Key 不可用时，沿用内置静态清单。
 
@@ -49,18 +63,19 @@ AI 以自主 **Agent 循环** 运行：接收用户请求 → 规划步骤 → �
 
 - **多模态消息** — 为支持视觉的模型附加图片（PNG/JPG/GIF/WebP）
 - **粘贴与拖拽** — `Ctrl+V` 从剪贴板粘贴图片，或直接拖拽图片文件到输入框
-- **文件选择器** — 点击「Img」按钮从磁盘选择图片
+- **文件选择器** — 点击输入框左下角的「+」按钮从磁盘选择图片
 - **图片预览** — 发送前在输入框上方显示缩略图，支持单独移除；**点击缩略图可放大查看**（弹出全尺寸预览窗口）
 - **模型感知** — 自动检测当前模型是否支持视觉；不支持的模型会给出明确提示
-- 已支持：OpenAI GPT-5.5/5.6、Claude（所有变体）、Gemini、Grok
+- 模型目录包含 OpenAI、Claude、Gemini、Grok 等视觉模型；v2.1.2 起 DeepSeek 默认启用图片能力识别，实际支持以接口返回为准
 
 ### QML/Qt Quick 桌面界面
 
-整个前端使用 **QML/Qt Quick**（`houdini_agent/ui_qml/`），由 Python `Controller` 把 Agent 状态以信号流式推送给模块化的 QML 组件库。界面采用接近 Codex 的简洁桌面布局：中性深浅配色、无衬线字体、可拖动调宽的会话侧栏、居中对话区与圆角多行输入框。拖动分隔线会同步调整侧栏和对话区宽度，内容重新排版，不覆盖消息；对话右侧刻度可悬浮查看提问摘要、点击跳转历史消息。模型、推理强度和 Agent / Ask / Plan 模式在输入框底部选择。
+整个前端使用 **QML/Qt Quick**（`houdini_agent/ui_qml/`），由 Python `Controller` 把 Agent 状态以信号流式推送给模块化的 QML 组件库。界面采用接近 Codex 的简洁桌面布局：中性深浅配色、无衬线字体、可拖动调宽的会话侧栏、居中对话区与圆角多行输入框。拖动分隔线会同步调整侧栏和对话区宽度，内容重新排版，不覆盖消息；对话右侧刻度可悬浮查看提问摘要、点击跳转历史消息。Agent / Ask / Plan 模式在附件按钮右侧选择，模型在发送按钮左侧选择；推理强度与模型放在同一个弹出面板中，沿用原有订阅渠道和模型支持逻辑，不支持的渠道不会显示。显示名称的大小写美化不会改变请求中的模型 ID。
 
 - 中性深浅主题，左侧**会话侧栏**支持搜索、新建与切换；侧栏右下角的齿轮**设置**入口管理外观、模型与扩展，侧栏收起时可用 `Ctrl+,` 打开。**Meshy** 独立分区集中提供账号配置、资产库和生成入口，提示词模板也在设置中打开
 - 右上角 **Houdini 状态按钮**显示连接状态，点击可连接或切换已打开的 Bridge 会话、按版本启动新会话，也可手动断开。手动断开不会关闭 Houdini，并会暂停自动重连，选择会话后再恢复。启动 Agent 不再弹出版本选择窗口，也不会主动启动 Houdini；已就绪的 Bridge 会自动接入。
-- 思考过程、工具调用、节点操作、执行结果均可折叠/展开
+- 思考过程、工具调用、节点操作、执行结果均可折叠/展开；思考流结束后自动折叠，历史思考默认折叠，可点击标题再次展开。耗时使用整数格式，如 `8 min 35 s`
+- **供应商配置与状态** — 列表仅显示名称、状态圆点和「配置」入口：当前使用显示蓝色，其余为绿色可用、红色不可用或未配置、黄色未验证。进入配置页管理 Key、模型和验证；悬浮列表行后点击「使用」切换供应商，具体模型在输入框选择。「验证」会独立请求该模型，可能消耗额度；正常聊天成功也会更新状态。每个供应商仅使用第一个模型验证一次，结果保存在本机，配置不变时复用，更换 Key、端点或账号后重新验证。已保存的 Key 在配置页以密码圆点显示，未编辑时保留原值。内置聊天供应商 API Key 保存在 `config/houdini_ai.ini`，自定义供应商由 QSettings 保存（Windows 为 `HKEY_CURRENT_USER\Software\HoudiniAI\Assistant` 的 `custom_providers` 字段）；目前均为明文存储，密码圆点仅用于界面遮蔽。
 - **消息排队** — 运行中输入后按 Enter 或点击发送，消息会按顺序等待上一轮完成；各条保留自己的附件、模型、模式和推理强度。输入框上方可取消或退回编辑。点击停止或请求失败会暂停队列，点击「继续」恢复；等待计划确认时先完成确认。队列随对话保存，切换回来或重启后需手动继续。
 - **Meshy 生成卡片** — 文/图生 3D、重打材质、重拓扑的实时进度；带「转入后台」按钮
 - **概念图画廊卡片** — 概念图转 3D / 文生图 / 图生图的交互式多选画廊，支持改提示词、重新生成、二次编辑、把选中的升级成 3D
@@ -69,13 +84,14 @@ AI 以自主 **Agent 循环** 运行：接收用户请求 → 规划步骤 → �
 - **可点击节点路径** — 回复中的 `/obj/geo1/box1` 等路径自动变为链接，点击即可跳转到对应节点
 - **节点上下文栏**：实时显示当前选中的 Houdini 节点（Plan 规划阶段为只读）
 - **Todo 列表**：显示在对话区域上方，带实时状态图标
-- **Token 分析** — 实时显示 Token 用量、推理 Token、Cache 命中率和按模型计费的费用估算（点击查看详细分析面板）
+- **上下文用量** — 模型按钮左侧圆环表示使用比例，悬浮查看已使用量和上下文上限；上下文长度来自模型目录或自定义配置，第三方接口未披露时不能据此确认其真实上限
 - **流式 VEX 代码预览** — 类似 Cursor Apply 的实时代码书写动画
-- 多会话标签页 — 同时运行多个独立对话
-- AI 回复一键复制；`Ctrl+Enter` 发送消息
-- **字号缩放** — 滑块弹窗实时缩放界面，偏好持久化
+- **多会话历史** — 左侧搜索、新建、切换和删除对话；一次只运行一个 Agent 请求，运行中不能切换、新建或删除会话。可继续向当前会话排队，或先停止再切换
+- 用户消息和 AI 回复均支持复制；用户消息显示发送时间，悬浮可看完整日期。输入框按 `Enter` 发送、`Shift+Enter` 换行
+- **失败消息恢复** — 请求失败后，可通过错误区的返回输入框操作恢复原始文本和可读取的附件，编辑后重新发送；附件丢失时会提示补充，恢复不会自动重发
+- **字号缩放** — 在「设置 → 外观」调整界面字号、字体方案、密度、主题与强调色，偏好持久化
 - **双语 UI** — 切换中文/英文界面，所有 UI 元素和系统提示词动态重译
-- **更新通知** — 检测到新版本时显示横幅，支持「立即更新」和关闭
+- **更新通知** — 检测到新版本时，在侧栏设置齿轮左侧显示「更新」按钮；无更新时隐藏。悬浮查看版本和状态，下载时显示进度，等待空闲安装时可点击「取消更新」。打包版接入安装更新流程；源码和 Houdini 内嵌运行需通过源码更新
 - **管理面板** — 应用内插件管理器、规则编辑器、长期记忆浏览
 - **输入法支持** — 完整的中文/日文/韩文输入法支持（Windows 和 macOS）
 
@@ -201,6 +217,9 @@ AI 以自主 **Agent 循环** 运行：接收用户请求 → 规划步骤 → �
 | 工具 | 说明 |
 |------|------|
 | `search_memory` | 搜索语义记忆库 — 按类别、抽象层级和置信度评分检索相关的历史经验、规则和策略 |
+| `save_memory` | 用户明确要求“记住”时，将偏好或经验保存到本机；返回记忆 ID，同内容自动去重，无需连接 Houdini |
+
+新版 UI 中，先在「设置 → 常规」开启「长期记忆」，再在对话中明确要求“记住：……”。也可从「设置 → 记忆 → 新增记忆」手动保存，并在 Semantic 页签查看或删除。手动保存不要求开启开关；关闭时 Agent 不会读取或写入记忆，也不会将保存内容注入后续请求。记录存储在本机 `cache/memory/agent_memory.db`，开启后新会话会加载核心偏好及相关历史记忆。当前 QML 前端支持显式保存，不会自动把整段对话总结成记忆。
 
 ### Plan 模式
 
@@ -230,11 +249,13 @@ Skill 是预优化的 Python 脚本，在 Houdini 环境中运行，用于可靠
 
 ```
 Houdini-Agent/
-├── launcher.py                      # 启动器 — 检测 Houdini，路由到 QML 程序（Houdini 内嵌或独立）
+├── launcher.py                      # Houdini 内嵌 / Windows 源码启动入口
+├── start_houdini_agent.sh            # Linux 独立启动与 --setup
+├── requirements-linux.txt           # Linux 独立 Python/Qt 依赖
 ├── README.md / README_CN.md         # 中英文文档
 ├── VERSION                          # 语义版本文件（如 2.0.0）
-├── HoudiniAgent.spec                # PyInstaller 构建配置（独立程序）
-├── build_installer.ps1              # Inno Setup 安装包构建
+├── Houdini Agent.bat               # Windows 双击启动
+├── installer/                       # PyInstaller 配置、构建与发版脚本
 ├── lib/                             # 内置依赖库（requests、urllib3、certifi、tiktoken 等）
 ├── assets/                          # 应用图标（houdini-agent.ico）与品牌资源
 ├── config/                          # 运行时配置（自动创建，已 gitignore）
@@ -258,7 +279,7 @@ Houdini-Agent/
 │       └── deploy_telemetry.py     #   部署脚本
 ├── website/                         # 营销主页（houdini-agent.com）
 └── houdini_agent/                   # 主模块
-    ├── ui_qml/                     # QML/Qt Quick 前端（Mono Editorial）— 主界面
+    ├── ui_qml/                     # QML/Qt Quick 前端（Codex 风格）— 主界面
     │   ├── controller.py          # Controller（QObject）— QML⇄后端桥，驱动 Agent 循环，
     │   │                          #   流式推送信号、Meshy 画廊、后台任务、云资产库
     │   ├── agent_session.py       # Houdini 内会话后端（封装 AIClient + HoudiniMCP）
@@ -270,9 +291,11 @@ Houdini-Agent/
     │   ├── qml/
     │   │   ├── Main.qml           # 根窗口 — 资产库抽屉 + 对话栏
     │   │   └── HAgent/            # 组件库
-    │   │       ├── Theme.qml      #   Mono Editorial 调色板 / 字体 / 缩放
+    │   │       ├── Theme.qml      #   主题 / 强调色 / 字体 / 缩放
     │   │       ├── ChatView.qml, MessageUser.qml, MessageAI.qml, Composer.qml, Header.qml,
-    │   │       │   SessionTabs.qml, ContextBar.qml, StatusBar.qml
+    │   │       │   Sidebar.qml, ChatTimeline.qml, ContextBar.qml, ContextUsage.qml
+    │   │       ├── SettingsWindow.qml, ProviderManager.qml, ModelPicker.qml, QueuedMessages.qml
+    │   │       ├── PanelTextArea.qml  # Qt 6.8 / 新版独立 Qt 的输入框兼容
     │   │       ├── ProseBlock.qml, CodeBlock.qml, CodePreviewBlock.qml, ThinkingBlock.qml,
     │   │       │   TodoBlock.qml, ShellBlock.qml, ExecBlock.qml, NodeOpRow.qml, ImageBlock.qml
     │   │       ├── MeshyCard.qml, ConceptGalleryCard.qml      # Meshy 进度 + 交互画廊
@@ -294,7 +317,7 @@ Houdini-Agent/
     ├── main.py                     # 旧版模块入口（回退）
     ├── shelf_tool.py               # Houdini 工具架集成
     ├── qt_compat.py                # PySide2/PySide6 兼容层
-    ├── launcher/                   # Houdini 探测与启动（houdini_discovery.py）
+    ├── launcher/                   # houdini_discovery.py（跨平台探测）/ linux.py（独立入口）
     ├── houdini_package/            # 安装进 Houdini packages/ 的 bridge package 载荷
     ├── skills/                     # 预构建分析脚本（自动注册为 skill:xxx 工具）
     └── utils/
@@ -309,6 +332,7 @@ Houdini-Agent/
         ├── tool_registry.py       # 统一工具注册中心 — 核心/技能/插件/用户工具
         ├── rules_manager.py       # 用户规则管理器（UI + 文件规则，Prompt 注入）
         ├── memory_store.py        # 三层记忆存储（事件/抽象/策略）SQLite
+        ├── memory_tools.py        # save_memory / search_memory 与记忆上下文
         ├── embedding.py / reward_engine.py / reflection.py / growth_tracker.py  # 长期记忆系统
         └── mcp/                   # Houdini MCP 层
             ├── client.py          # 工具执行器（节点操作、Shell、Skill 分发、ToolRegistry 降级分发）
@@ -321,18 +345,27 @@ Houdini-Agent/
 
 ### 环境要求
 
-- **Houdini 20.5+**（或 21+）
-- **Windows / macOS / Linux**
-- **自带运行环境** — 独立程序内置 Python 与 PySide6，无需安装 Python，也无需 pip
+- **Houdini 19.5+** — 需要操作场景时连接带 Bridge 的 Houdini；普通聊天及本机记忆功能无需连接
+- **Windows** — 预构建独立安装包自带 Python 与 PySide6
+- **Linux** — 本分支提供源码启动，目标为 Rocky Linux 9 x86_64 / X11，需要 Python 3.11+ 与 Qt/X11 系统库，详见下节
+- **macOS** — 保留已有相关代码路径；本次 Linux 适配不代表完成 macOS 独立程序验收
 
 ### 安装与启动
 
 Houdini Agent 现在是**独立桌面程序**，通过 **Bridge** 连接正在运行的 Houdini（不再在 Houdini 进程内运行）。
 
-1. 从 [GitHub Releases](https://github.com/Kazama-Suichiku/Houdini-Agent/releases/latest) 下载预构建的「Houdini Agent」，解压后双击运行。
-2. 程序自动探测本机 Houdini（20.5+）并将**桥接 package** 安装到 Houdini 的 `packages/` 目录，然后提示「打开 Houdini」。
-3. Houdini 启动时会自动拉起 **bridge server**；外置程序通过 **bridge client** 自动连接。
-4. 在程序内点「**API Key…**」保存到本机，或设置环境变量（见下）。
+1. Windows 可从上游 [GitHub Releases](https://github.com/Kazama-Suichiku/Houdini-Agent/releases/latest) 获取原版安装包；它不包含本 fork 的 UI、队列、记忆与 Linux 改动。使用本分支功能需运行本分支源码，或在 Windows 用 `installer/build_houdini_agent_exe.ps1` 自行构建。
+2. Agent 自动探测本机 Houdini（19.5+），安装 **Bridge package**。启动 Agent 不会自动拉起 Houdini；就绪的 Bridge 会自动连接。
+3. 点击右上角「Houdini」状态按钮，可连接或切换已有 Bridge 会话、选择版本启动新会话。圆点和文字绿色表示已连接，红色表示未连接，未连接时带亮度呼吸效果；列表标题旁的叉号用于断开，刷新图标重新发现会话。
+4. 从侧栏右下角齿轮进入「**设置 → 模型与 Provider → 配置**」，填写 Key 或登录订阅渠道、配置模型并验证。回到供应商列表，悬浮点击「使用」，再到输入框右下角选择模型。
+
+**Windows 源码一键启动**：直接双击项目根目录的 `Houdini Agent.bat`，无需打开命令行。它自动选择已安装的兼容 Houdini，复用其 Python/Qt 环境启动 Agent，不会自动打开 Houdini。可给该 BAT 创建桌面快捷方式；启动出错时窗口会保留错误提示。项目目录包含空格也可使用。
+
+如需指定运行环境版本，可在 PowerShell 运行 `& ".\Houdini Agent.bat" -HoudiniVersion 22.0`。这只选择 Agent 使用的 Python/Qt，不限制之后连接哪个 Houdini 会话。
+
+**源码更新**：通过当前仓库更新所用分支后重启 Agent。源码运行（含 Houdini 内嵌面板）不自动检查或提示安装包更新；手动“检查更新”会显示源码更新说明。独立 EXE 保留官网清单/GitHub Release 检查和安装包更新。`VERSION` 是 Release 标号，不代表本分支的 Git 提交新旧。
+
+**安装包体积**：本机使用上述 BAT 启动即可，无需打包。分发时 `installer/HoudiniAgent.spec` 使用目录模式，EXE 与 Python/Qt 依赖分开放置，再由 Inno Setup 压缩成安装程序。构建配置仅显式收集使用的 Qt 模块，并排除源码字节码缓存和个人 `trainData`；保留 QML、字体、Bridge 与内嵌面板资源。建议在独立的构建环境中安装所需依赖，避免开发环境里可选的大型机器学习包被自动收集。实际体积以构建结果为准。
 
 所有 `hou.*` 调用都经 Bridge 在 Houdini 主线程执行，保证线程安全。
 
@@ -343,7 +376,40 @@ Houdini Agent 现在是**独立桌面程序**，通过 **Bridge** 连接正在�
 > import launcher
 > launcher.show_tool()
 > ```
-> 或用 `build_houdini_agent_exe.ps1` 自行构建独立程序（PyInstaller）。
+> 或用 `installer/build_houdini_agent_exe.ps1` 自行构建独立程序（PyInstaller）。
+
+### Rocky Linux 9 独立启动
+
+Linux 适配在 `codex/linux-support` 分支，使用系统 Python 的独立虚拟环境运行，不需要先打开 Houdini。目标环境为 **Rocky Linux 9 x86_64、Python 3.11+、X11 桌面**。Houdini 19.5+ 通过 Bridge 连接，Agent 使用自己的 Qt6，不要求 Houdini 内部也使用 Qt6。
+
+安装系统依赖（需要管理员权限）：
+
+```bash
+sudo dnf install -y python3.11 python3.11-pip \
+  libX11-xcb libxcb xcb-util-cursor xcb-util-image xcb-util-keysyms \
+  xcb-util-renderutil xcb-util-wm libxkbcommon-x11 libXrender libXi \
+  libXext libXfixes libSM libICE libXcomposite libXdamage \
+  mesa-libGL mesa-libEGL libglvnd-opengl glib2 fontconfig freetype dbus-libs google-noto-sans-cjk-fonts
+```
+
+在当前用户可写的项目目录中首次安装依赖，然后启动：
+
+```bash
+cd /path/to/Houdini-Agent
+bash start_houdini_agent.sh --setup
+bash start_houdini_agent.sh
+```
+
+`--setup` 只在项目下创建 `.venv` 并安装依赖，不修改系统 Python。可用 `HAGENT_PYTHON=/path/to/python3.11` 指定解释器。后续直接运行启动脚本即可，无需重复安装。
+
+- 默认检测 `/opt/hfs*`、`/opt/hfs/`、`/opt/sidefx/versions/` 等目录，并读取 `HFS` 和 `PATH`。自定义安装可使用 `bash start_houdini_agent.sh --houdini-root /studio/software`，也可设置 `HAGENT_HOUDINI_ROOTS=/path/one:/path/two`。
+- Bridge 包自动写入 `~/houdiniX.Y/packages/HoudiniAgent.json`，支持 `HOUDINI_USER_PREF_DIR` 和 `__HVER__` 占位符。
+- Agent 启动不会主动拉起 Houdini；已加载 Bridge 的会话会自动连接。也可点击右上角的 Houdini 状态按钮，选择启动已检测到的版本。首次安装 Bridge 时，已打开且未加载 Bridge 的 Houdini 需要保存场景后重启。
+- 启动 Houdini 时会先加载该版本的 `houdini_setup`，并隔离 Agent 的 Python/Qt 环境。Houdini 关闭后会更新状态，重新打开后自动重连；手动断开后需自行重新选择会话。
+- 诊断命令：`bash start_houdini_agent.sh --check`，只显示 Python、依赖、安装版本及图形会话状态；`--install-bridge` 可单独安装 Bridge 包。
+- SideFX 当前要求 X11；使用 GNOME 时选择 Xorg 会话。缺少显示服务的服务器只能运行诊断/后台测试，不能显示交互界面。
+
+平台参考：[SideFX 系统要求](https://www.sidefx.com/Support/system-requirements/)、[Houdini Packages](https://www.sidefx.com/docs/houdini/ref/plugins.html)。项目增加了 Rocky 9 容器 CI；通过不带真实 Houdini 的自动测试不能替代显卡驱动、许可证和真实场景的实机验收。
 
 ### 配置 API Key
 
@@ -368,7 +434,9 @@ Houdini Agent 现在是**独立桌面程序**，通过 **Bridge** 连接正在�
 
 **方式二：工具内设置**
 
-点击「设置 API Key…」按钮，勾选「保存到本机配置」。
+打开「设置 → 模型与 Provider → 配置」，填完信息后保存；也可直接点击「验证」，它会先保存修改后的有效配置再测试，无需退出重进。订阅渠道使用对应的登录入口。已保存的 Key 重开配置时显示密码圆点。
+
+内置聊天供应商 Key 保存在 `config/houdini_ai.ini`；自定义供应商和验证结果使用 QSettings（Windows 路径见前述界面说明；Linux 通常为 `~/.config/HoudiniAI/Assistant.conf`，具体位置受 Qt/XDG 设置影响）。这些配置目前是明文存储，圆点仅用于 UI 遮蔽。受支持的内置渠道也可使用环境变量配置。
 
 ## 架构
 
@@ -406,7 +474,7 @@ Houdini Agent 现在是**独立桌面程序**，通过 **Bridge** 连接正在�
 | `BridgeAgentSession` | `ui_qml/bridge_session.py` | 独立模式后端 — 接口相同，但把 `hou.*` 工具调用经 `BridgeClient` 路由到正在运行的 Houdini |
 | `host.py` / `app.py` / `external_app.py` | `ui_qml/` | 分别是 QQuickWidget 宿主（注册字体）、Houdini 内启动器、独立启动器 |
 
-QML 组件位于 `ui_qml/qml/HAgent/`；`Theme.qml` 集中管理 Mono Editorial 调色板、字体和缩放。
+QML 组件位于 `ui_qml/qml/HAgent/`；`Theme.qml` 集中管理主题、强调色、字体和缩放。
 
 ### Bridge（独立程序 ⇄ Houdini）
 
@@ -589,7 +657,7 @@ Agent：[create_wrangle_node: vex_code="@Cd = set(rand(@ptnum), rand(@ptnum*13.3
 ## 常见问题
 
 ### API 连接问题
-- 使用「测试连接」按钮进行诊断
+- 在「设置 → 模型与 Provider」打开相应供应商的「配置」，填完资料即可点「验证」，它会先保存修改后的有效配置再发送测试请求，无需退出并重新进入
 - 检查 API Key 是否正确
 - 确认网络可以访问 API 端点
 
@@ -599,7 +667,8 @@ Agent：[create_wrangle_node: vex_code="@Cd = set(rand(@ptnum), rand(@ptnum*13.3
 - 自定义端点需指向支持工具调用的模型
 
 ### 节点操作失败
-- 确认在 Houdini 内运行（非独立 Python）
+- 检查右上角 Houdini 状态是否为绿色；独立 Agent 通过 Bridge 操作场景，无需在 Houdini 进程内运行 UI
+- 若未发现已打开的 Houdini，先确认其已加载 Bridge；首次安装 package 后需保存场景并重启 Houdini
 - 检查节点路径是否为绝对路径（如 `/obj/geo1/box1`）
 - 查看工具执行结果中的具体错误信息
 
@@ -607,15 +676,25 @@ Agent：[create_wrangle_node: vex_code="@Cd = set(rand(@ptnum), rand(@ptnum*13.3
 - 非 Houdini 工具（Shell、联网）应在后台线程运行
 - 如果执行 Shell 命令时 UI 卡顿，请更新到最新版本
 
-### 更新
-- 点击工具栏中的 **Update** 按钮检查新版本
-- 插件启动时静默检查 GitHub，检测到新版本时在输入区上方显示 **更新通知横幅**
-- 横幅支持一键「立即更新」或关闭
+### 本分支的源码更新
+
+先保存工作区改动，再获取本 fork 的更新。不要用原版安装包覆盖本分支来同步定制功能。合并上游时需保留本分支改动；Linux 更新依赖后重新执行 `bash start_houdini_agent.sh --setup`，随后重启 Agent。Bridge/package 代码变化后还需重启 Houdini 以加载新代码。
+
+### 原版更新器
+
+以下为原版更新器的行为；使用本 fork 时应先确认更新来源：
+
+- 当前界面从「设置 → 关于 → 检查更新」检查新版本
+- 启动时静默检查更新，检测到新版本时在侧栏设置按钮左侧显示「更新」，不再占用对话区高度
+- 点击按钮进入现有更新流程；下载时显示百分比，等待安装时可取消，无更新时自动隐藏入口
 - 更新时保留 `config/`、`cache/`、`trainData/`、`plugins/`、`rules/` 目录
 - 更新后插件自动重启
 
 ## 版本历史
 
+- **本 fork / `codex/linux-support`** — Codex 风格界面、串行消息排队、失败消息恢复、供应商统一配置与验证、显式长期记忆保存、思考自动折叠，以及 Rocky Linux 9 独立启动与 Bridge 适配。以本分支提交记录为准，未单独发布版本号。
+- **v2.1.2（已合入）** — 模型目录默认将 DeepSeek 识别为支持图片输入，包含直连、OpenRouter 及后续动态发现的模型；同步能力测试、版本号与官网发布记录。
+- **v2.1.1（已合入）** — ChatGPT 订阅（Codex）概念图生成与编辑、默认生图模型设置和生图模型目录同步。
 - **v2.0.1** — **就地更新后正确进入新 QML 界面**：修复"更新到 2.0 却还是以前的 UI"。旧版(1.5.x)的 Houdini 内嵌自动更新通过 `houdini_agent.main.show_tool()` 重启，而 2.0.0 里它是旧 PySide 入口——就地更新的用户因此停在旧界面。现在 `main.show_tool()` 默认转发到内嵌 QML 界面（`HAGENT_UI=legacy` 可回退）；官网下载的仍是独立安装包（启动方式不同）。另修复打包后更新器误报"当前版本 0.0.0"（健壮的 VERSION 查找），并新增离线 pytest 测试套件 + CI。
 - **v2.0.0** — **独立程序 + QML 重写 + Meshy 全家桶**：Houdini Agent 变为**独立桌面程序**，通过全新的**套接字 Bridge**（`bridge/client.py` + `bridge/server.py`）连接正在运行的 Houdini —— 不再嵌入 Houdini 进程，所有 `hou.*` 调用仍保持主线程安全。前端**完全用 QML/Qt Quick 重写**（`houdini_agent/ui_qml/`），Mono Editorial 设计风格，由精简的 `Controller`（QObject）驱动 Agent 循环并把状态流式推送给模块化 QML 组件库，外加 `ChatModel`（`QAbstractListModel`）。**Meshy 工具扩到 11 个** —— 新增 `meshy_text_to_image`（并行概念图画廊，单一/多方向）、`meshy_image_to_image`（2D 图生图 / 二次编辑，自动取附带的图）、`meshy_task_status`（查询后台任务）；所有交互类工具都弹出 `ConceptGalleryCard`（多选、改提示词、重新生成、升级成 3D）。**后台任务** —— 任何耗时生成都可转入后台，结果作为新消息自动送回，Agent 空闲时画廊自动弹出。**云资产库** —— 侧滑抽屉聚合你在 Meshy 的历史生成（带缩略图、一键导入），并显示账号/额度。**匿名用量埋点**（可关闭）把每个任务消耗的 credits 上报到纯标准库后端（`deploy/telemetry_server/`）。新增品牌化应用/安装包图标；PyInstaller + Inno Setup 打包。
 - **v1.6.0** — **Meshy 3D 生成集成**：新增自包含 `houdini_agent/meshy/` 包，接入 Meshy 的文生/图生 3D、重打材质、重拓扑，外加 `import_3d_asset`（GLB 导入 + 用 PBR 贴图自动搭 Principled Shader）与 `export_node_to_glb`。网络调用跑在 App 后台线程；Houdini I/O 跑在主线程（in-process 或经 bridge）。生成类工具消耗 credits，受执行前确认门控。工具通过 `ToolRegistry` 的 handler 自注册——核心文件（`agent_session`/`bridge_session`/`controller`/`bridge.server`）只留最小引用钩子。新增 `MeshyCard` QML 卡片实时显示生成进度；应用内填 key 走 ⋯ → Meshy API Key…（`MESHY_API_KEY`）。

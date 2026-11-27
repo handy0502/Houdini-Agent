@@ -121,7 +121,6 @@ class AIClientProvidersMixin:
         key = (key or '').strip()
         if not key:
             return False
-        self._api_keys[provider] = key
         if persist:
             cfg, _ = load_config('ai', dcc_type='houdini')
             cfg = cfg or {}
@@ -129,7 +128,9 @@ class AIClientProvidersMixin:
                        'openrouter': 'openrouter_api_key', 'custom': 'custom_api_key'}
             cfg[key_map.get(provider, f'{provider}_api_key')] = key
             ok, _ = save_config('ai', cfg, dcc_type='houdini')
-            return ok
+            if not ok:
+                return False
+        self._api_keys[provider] = key
         return True
 
     def get_masked_key(self, provider: str = 'openai') -> str:
@@ -254,8 +255,8 @@ class AIClientProvidersMixin:
         self._CUSTOM_API_URL = api_url.strip()
         self._CUSTOM_SUPPORTS_FC = supports_fc
         self._CUSTOM_ANTHROPIC_PROTOCOL = bool(anthropic_protocol)
-        if api_key:
-            self._api_keys['custom'] = api_key.strip()
+        # Credentials belong to this profile, including explicitly keyless ones.
+        self._api_keys['custom'] = (api_key or '').strip()
 
     def get_custom_models(self, api_url: str, api_key: str = '') -> List[str]:
         """获取 Custom Provider 可用的模型列表（通过 OpenAI 兼容的 /v1/models 端点）

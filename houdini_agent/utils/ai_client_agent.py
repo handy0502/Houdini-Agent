@@ -161,7 +161,8 @@ class AIClientAgentMixin:
                           on_tool_args_delta: Optional[Callable[[str, str, str], None]] = None,
                           on_iteration_start: Optional[Callable[[int], None]] = None,
                           on_plan_incomplete: Optional[Callable[[], Optional[str]]] = None,
-                          context_limit: int = 128000) -> Dict[str, Any]:
+                          context_limit: int = 128000,
+                          max_tool_calls: int = 999) -> Dict[str, Any]:
         """流式 Agent Loop
 
         Args:
@@ -218,7 +219,7 @@ class AIClientAgentMixin:
 
         # 防止死循环：检测重复工具调用
         recent_tool_signatures = []  # 最近的工具调用签名
-        max_tool_calls = 999  # 不限制总调用次数（仅保留连续重复检测）
+        max_tool_calls = max(1, int(max_tool_calls))
         total_tool_calls = 0
         consecutive_same_calls = 0  # 连续相同调用计数
         last_call_signature = None
@@ -581,7 +582,7 @@ class AIClientAgentMixin:
                 # ★ Plan 续接检测：AI 输出了纯文本，但 Plan 可能还有未完成步骤
                 # 通过回调询问 UI 层 Plan 是否已完成
                 _plan_resume_msg = None
-                if on_plan_incomplete and iteration > 1:
+                if on_plan_incomplete:
                     try:
                         _plan_resume_msg = on_plan_incomplete()
                     except Exception as _pe:
@@ -711,6 +712,10 @@ class AIClientAgentMixin:
             # --- 先检查去重缓存 ---
             blocked_flags = [False] * len(parsed_calls)
             for idx, (tid, tname, targs, _tc) in enumerate(parsed_calls):
+                if idx >= max_tool_calls - total_tool_calls:
+                    results_ordered[idx] = {'success': False, 'error': 'Task tool-call budget exhausted; call not executed.'}
+                    blocked_flags[idx] = True
+                    continue
                 dedup_key = self._tool_signature(tname, targs)
                 fail_count = failed_tool_signatures.get(dedup_key, 0)
                 if fail_count >= self._FAILED_TOOL_REPEAT_LIMIT:
@@ -872,7 +877,6 @@ class AIClientAgentMixin:
                 if total_tool_calls > max_tool_calls:
                     print(f"[AI Client] ⚠️ 达到最大工具调用次数限制 ({max_tool_calls})")
                     should_break_tool_limit = True
-                    break
 
                 if call_signature == last_call_signature:
                     consecutive_same_calls += 1
@@ -954,6 +958,7 @@ class AIClientAgentMixin:
             if should_break_tool_limit:
                 return {
                     'ok': True,
+                    'budget_exhausted': True,
                     'content': full_content + f"\n\n已达到工具调用次数限制({max_tool_calls})，自动停止。",
                     'final_content': f"\n\n已达到工具调用次数限制({max_tool_calls})，自动停止。",
                     'new_messages': self._extract_new_messages(working_messages, initial_msg_count),
@@ -1246,7 +1251,8 @@ class AIClientAgentMixin:
                               on_tool_args_delta: Optional[Callable[[str, str, str], None]] = None,
                               on_iteration_start: Optional[Callable[[int], None]] = None,
                               on_plan_incomplete: Optional[Callable[[], Optional[str]]] = None,
-                              context_limit: int = 128000) -> Dict[str, Any]:
+                              context_limit: int = 128000,
+                              max_tool_calls: int = 999) -> Dict[str, Any]:
         """JSON 模式 Agent Loop（用于不支持 Function Calling 的模型）"""
 
         if not self._tool_executor:
@@ -1299,7 +1305,7 @@ class AIClientAgentMixin:
         }
 
         # 防止死循环：检测重复工具调用
-        max_tool_calls = 999  # 不限制总调用次数（仅保留连续重复检测）
+        max_tool_calls = max(1, int(max_tool_calls))
         total_tool_calls = 0
         consecutive_same_calls = 0
         last_call_signature = None
@@ -1514,7 +1520,7 @@ class AIClientAgentMixin:
 
                 # ★ Plan 续接检测（JSON 模式）
                 _plan_resume_msg = None
-                if on_plan_incomplete and iteration > 1:
+                if on_plan_incomplete:
                     try:
                         _plan_resume_msg = on_plan_incomplete()
                     except Exception as _pe:
@@ -1559,6 +1565,10 @@ class AIClientAgentMixin:
             exec_results = [None] * len(tool_calls)
             blocked_flags = [False] * len(tool_calls)
             for i, tc in enumerate(tool_calls):
+                if i >= max_tool_calls - total_tool_calls:
+                    exec_results[i] = {'success': False, 'error': 'Task tool-call budget exhausted; call not executed.'}
+                    blocked_flags[i] = True
+                    continue
                 sig = self._tool_signature(tc.get('name', ''), tc.get('arguments', {}))
                 fail_count = failed_tool_signatures.get(sig, 0)
                 if fail_count >= self._FAILED_TOOL_REPEAT_LIMIT:
@@ -1662,7 +1672,6 @@ class AIClientAgentMixin:
                 if total_tool_calls > max_tool_calls:
                     print(f"[AI Client] ⚠️ JSON模式：达到最大工具调用次数限制 ({max_tool_calls})")
                     should_break_limit = True
-                    break
 
                 if call_signature == last_call_signature:
                     consecutive_same_calls += 1
@@ -1706,6 +1715,7 @@ class AIClientAgentMixin:
             if should_break_limit:
                 return {
                     'ok': True,
+                    'budget_exhausted': True,
                     'content': full_content + f"\n\n已达到工具调用次数限制({max_tool_calls})，自动停止。",
                     'tool_calls_history': tool_calls_history,
                     'iterations': iteration

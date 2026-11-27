@@ -122,14 +122,37 @@ from houdini_agent.core.main_window import MainWindow
 
 _main_window = None
 
+
+def show_panel():
+    """把 Agent 作为 Houdini 面板 Tab（Python Panel）打开。
+
+    面板定义随集成包放在 $HOUDINI_PATH/python_panels/ 下，Houdini 启动即自动加载；
+    这里额外兜底 installFile 一次，然后切到当前 pane 的新 tab。
+    """
+    from houdini_agent.ui_qml import pane
+    return pane.open_pane_tab()
+
+
 def show_tool():
     global _main_window, MainWindow
+
+    mode = os.environ.get("HAGENT_UI", "qml").strip().lower()
+
+    # HAGENT_UI=pane：优先用面板 Tab（可停靠、随 desktop 保存），失败再回退浮动窗口。
+    if mode in ("pane", "panel", "panetab"):
+        try:
+            print("[Houdini Agent] Startup: 转发到面板 Tab")
+            return show_panel()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print("[Houdini Agent] 面板 Tab 启动失败，回退浮动窗口: %s" % e)
 
     # 默认转发到新的 QML 界面（in-Houdini 内嵌）。
     # 旧版本(1.5.7 等)就地自动更新后会调用本函数“重启”，若不转发就会停在 2.0 里保留的
     # 旧 PySide 界面（用户报“更新到 2.0 还是以前的 UI”）。这里让它落到新 QML 界面。
     # 设环境变量 HAGENT_UI=legacy 可显式回退到旧 QtWidgets 界面。
-    if os.environ.get("HAGENT_UI", "qml").strip().lower() != "legacy":
+    if mode != "legacy":
         try:
             import importlib
             from houdini_agent.ui_qml import app as _qml_app

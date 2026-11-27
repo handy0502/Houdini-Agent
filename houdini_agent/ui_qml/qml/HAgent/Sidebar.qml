@@ -45,7 +45,7 @@ Rectangle {
         }
         Rectangle {
             Layout.fillWidth: true; implicitHeight: Theme.fs(36); radius: Theme.radSm
-            color: search.activeFocus ? Theme.surface : "transparent"
+            color: Theme.surface
             RowLayout {
                 anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 10; spacing: 10
                 AppIcon { name: "search"; color: Theme.textMute }
@@ -128,13 +128,36 @@ Rectangle {
                 color: Theme.textMute; font.family: Theme.fontBody; font.pixelSize: Theme.fXs
             }
         }
-        IconButton {
-            objectName: "settingsButton"
-            Layout.alignment: Qt.AlignRight
+        RowLayout {
+            Layout.fillWidth: true
             Layout.rightMargin: Theme.sp(6)
-            icon: "gear"; circular: true
-            tooltip: sidebar.loc("设置", "Settings")
-            onClicked: if (controller) controller.menuAction("settings")
+            spacing: Theme.sp(6)
+            Item { Layout.fillWidth: true }
+            IconButton {
+                id: updateButton
+                objectName: "updateButton"
+                icon: "arrowUp"; circular: true
+                readonly property string updateState: controller ? controller.updateState : ""
+                visible: !!controller && controller.updateText.length > 0
+                         && updateState !== "" && updateState !== "idle"
+                enabled: updateState === "available" || updateState === "waiting"
+                readonly property string statusLabel: updateState === "downloading" ? sidebar.loc("下载 ", "Downloading ") + (controller ? controller.updateProgress : 0) + "%"
+                    : updateState === "waiting" ? sidebar.loc("取消更新", "Cancel")
+                    : updateState === "installing" ? sidebar.loc("安装中", "Installing")
+                    : sidebar.loc("更新", "Update")
+                tooltip: statusLabel + (controller && controller.updateText ? "\n" + controller.updateText : "")
+                onClicked: {
+                    if (!controller) return
+                    if (updateState === "waiting") controller.dismissUpdate()
+                    else controller.startUpdate()
+                }
+            }
+            IconButton {
+                objectName: "settingsButton"
+                icon: "gear"; circular: true
+                tooltip: sidebar.loc("设置", "Settings")
+                onClicked: if (controller) controller.menuAction("settings")
+            }
         }
     }
 }

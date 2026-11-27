@@ -82,7 +82,7 @@ class FXCompatTests(unittest.TestCase):
 
     def test_frozen_app_packages_static_catalog(self):
         spec = (
-            Path(__file__).resolve().parents[1] / "HoudiniAgent.spec"
+            Path(__file__).resolve().parents[1] / "installer" / "HoudiniAgent.spec"
         ).read_text(encoding="utf-8")
         self.assertIn(
             'datas_for("houdini_agent/utils/mcp/fx_commands.json", '
@@ -264,7 +264,8 @@ class FXCompatTests(unittest.TestCase):
 @unittest.skipUnless(os.name == "nt", "PowerShell launcher is Windows-only")
 class LauncherPythonSelectionTests(unittest.TestCase):
     def test_launcher_starts_only_agent_before_version_confirmation(self):
-        script = Path(__file__).resolve().parents[1] / "start_houdini_agent.ps1"
+        repo = Path(__file__).resolve().parents[1]
+        script = repo / "houdini_agent" / "launcher" / "Agent Launcher.ps1"
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             runtime = root / "Side Effects Software" / "Houdini 22.0.429" / "python313"
@@ -292,11 +293,11 @@ class LauncherPythonSelectionTests(unittest.TestCase):
             launched = json.loads(result.stdout.strip().splitlines()[-1])
             self.assertEqual(len(launched), 1)
             self.assertEqual(Path(launched[0]["path"]), runtime / "pythonw.exe")
-            self.assertEqual(launched[0]["args"], [str(script.parent / "launcher.py")])
+            self.assertEqual(launched[0]["args"], ['"' + str(repo / "launcher.py") + '"'])
             self.assertNotEqual(launched[0]["style"], "Hidden")
 
     def test_launcher_selects_newest_complete_interpreter(self):
-        script = Path(__file__).resolve().parents[1] / "start_houdini_agent.ps1"
+        script = Path(__file__).resolve().parents[1] / "houdini_agent" / "launcher" / "Agent Launcher.ps1"
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in ("python39", "python310", "python311", "python313"):

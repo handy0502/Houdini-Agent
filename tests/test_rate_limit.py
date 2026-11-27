@@ -168,6 +168,8 @@ def test_session_does_not_duplicate_rejected_turn(monkeypatch, session_module, s
             {'role': 'assistant', 'content': '', 'tool_calls': [{'id': 't', 'type': 'function', 'function': {'name': 'inspect', 'arguments': '{}'}}]},
             {'role': 'tool', 'tool_call_id': 't', 'content': 'OK'}]
     session.client = SimpleNamespace(reset_stop=lambda: None, agent_loop_auto=lambda **kw: result)
+    session.client._tool_executor = lambda *a, **k: {'success': True}
+    session.client.set_tool_executor = lambda fn: setattr(session.client, '_tool_executor', fn)
     session.run('retry me', 'test-model', 'custom', 'Ask', {}, rag=False)
     if partial:
         assert len(session.history) > len(initial) and any(m['role'] == 'tool' for m in session.history)

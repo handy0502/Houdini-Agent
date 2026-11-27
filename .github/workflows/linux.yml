@@ -1,0 +1,46 @@
+name: Linux standalone
+
+on:
+  push:
+    branches: ["codex/linux-support"]
+  pull_request:
+    branches: [main, "codex/linux-support"]
+
+jobs:
+  rocky9:
+    runs-on: ubuntu-latest
+    container: rockylinux:9
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QT_QUICK_BACKEND: software
+      QT_QUICK_CONTROLS_STYLE: Basic
+      HAGENT_TELEMETRY_OFF: "1"
+    steps:
+      - name: Install Rocky runtime libraries
+        run: >-
+          dnf install -y git python3.11 python3.11-pip
+          libX11-xcb libxcb xcb-util-cursor xcb-util-image xcb-util-keysyms
+          xcb-util-renderutil xcb-util-wm libxkbcommon-x11 libXrender libXi
+          libXext libXfixes libSM libICE libXcomposite libXdamage
+          mesa-libGL mesa-libEGL libglvnd-opengl glib2 fontconfig freetype dbus-libs
+          google-noto-sans-cjk-fonts
+      - uses: actions/checkout@v4
+      - name: Install Python dependencies
+        run: python3.11 -m pip install -r requirements-linux.txt pytest
+      - name: Check launcher
+        run: |
+          bash -n start_houdini_agent.sh
+          bash start_houdini_agent.sh --check
+      - name: Test discovery, Bridge and UI
+        run: >-
+          python3.11 -m pytest -q -o addopts=
+          tests/test_linux_launcher.py tests/test_package_install.py
+          tests/test_connection_doctor.py tests/test_external_connection.py
+          tests/test_bridge_protocol.py tests/test_bridge_sessions.py tests/test_memory_tools.py
+          tests/test_tool_registry.py tests/test_qml_shell.py
+          tests/test_packaging_spec.py
+          tests/test_pane_panel.py tests/test_panel_scroll.py
+          tests/test_message_queue.py tests/test_update_check.py
+          tests/test_update_runtime.py
+          tests/test_task_runtime.py tests/test_task_sessions.py tests/test_agent_loop_guards.py
+          tests/test_scene_verification.py tests/test_effect_library.py tests/test_effect_controller.py

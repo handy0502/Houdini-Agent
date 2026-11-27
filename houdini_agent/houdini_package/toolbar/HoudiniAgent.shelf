@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<shelfDocument>
+  <!-- Houdini Agent 的 shelf tab。放在 $HOUDINI_PATH/toolbar/ 下随集成包自动加载。
+       按钮作用：把 Agent 作为新的 pane tab 打开（等同面板右上角 "+" → Houdini Agent）。 -->
+  <toolshelf name="hagent" label="Houdini Agent">
+    <memberTool name="hagent_open_panel"/>
+  </toolshelf>
+
+  <tool name="hagent_open_panel" label="Houdini Agent" icon="MISC_robot">
+    <script scriptType="python"><![CDATA[
+import os
+import sys
+import traceback
+
+
+def _repo_root():
+    root = os.environ.get("HAGENT_REPO", "").strip()
+    if root and os.path.isdir(os.path.join(root, "houdini_agent")):
+        return os.path.abspath(root)
+    return ""
+
+
+root = _repo_root()
+if root and root not in sys.path:
+    sys.path.insert(0, root)
+
+try:
+    from houdini_agent.ui_qml import pane
+    pane.open_pane_tab()
+except Exception:
+    detail = traceback.format_exc()
+    print("[Houdini Agent] open_pane_tab failed:\n" + detail)
+    try:
+        import hou
+        hou.ui.displayMessage(detail, severity=hou.severityType.Error,
+                              title="Houdini Agent")
+    except Exception:
+        pass
+]]></script>
+  </tool>
+</shelfDocument>

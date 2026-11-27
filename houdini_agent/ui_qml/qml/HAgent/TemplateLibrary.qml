@@ -156,7 +156,10 @@ Popup {
                 id: templatesScroll
                 Layout.fillWidth: true; Layout.fillHeight: true
                 clip: true; contentWidth: availableWidth
+                // 模板列表是打开弹窗后才加载的，内容高度要显式同步给 ScrollView
+                contentImplicitHeight: templatesContent.implicitHeight
                 Item {
+                    id: templatesContent
                     width: templatesScroll.availableWidth
                     implicitHeight: bodyCol.implicitHeight + Theme.panelPadding * 2
                     ColumnLayout {

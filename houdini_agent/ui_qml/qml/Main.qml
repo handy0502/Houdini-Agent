@@ -30,9 +30,34 @@ Rectangle {
     function toggleNavigation() {
         sidebarExpanded = !sidebarExpanded
     }
-    Shortcut { sequence: "Ctrl+N"; onActivated: if (controller) controller.newSession() }
-    Shortcut { sequence: "Ctrl+B"; onActivated: root.toggleNavigation() }
-    Shortcut { sequence: "Ctrl+,"; onActivated: if (controller) controller.menuAction("settings") }
+    // Python Panel（pane.py）在 tab 被激活时调用，让键盘焦点落在输入框
+    function focusComposer() {
+        if (composer) composer.focusInput()
+    }
+    // 兜底：面板里没有任何输入控件持有焦点时，可打印字符直接送进输入框
+    // （Houdini pane 里个别情况下点击输入框不会把 QML 焦点切过去）
+    focus: true
+    Keys.priority: Keys.BeforeItem
+    Keys.onPressed: function(event) {
+        if (!event.text || event.text.length === 0) return
+        var code = event.text.charCodeAt(0)
+        if (code < 0x20 || code === 0x7f) return              // 退格/回车/控制字符不兜底
+        if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)) return
+        var focused = Window.activeFocusItem
+        if (focused && focused.text !== undefined) return   // 文本输入/按钮自己处理
+        if (!composer) return
+        composer.focusInput()
+        composer.insertText(event.text)
+        event.accepted = true
+    }
+    // QML Shortcut 不支持 WidgetShortcut 的焦点匹配。面板宿主显式告知键盘焦点，
+    // 在保留 WindowShortcut 的同时避免抢走 Houdini 其它 pane 的 Ctrl+N 等快捷键。
+    property bool embedded: false
+    property bool embeddedFocus: false
+    readonly property bool shortcutsEnabled: !embedded || embeddedFocus
+    Shortcut { sequence: "Ctrl+N"; context: Qt.WindowShortcut; enabled: root.shortcutsEnabled; onActivated: if (controller) controller.newSession() }
+    Shortcut { sequence: "Ctrl+B"; context: Qt.WindowShortcut; enabled: root.shortcutsEnabled; onActivated: root.toggleNavigation() }
+    Shortcut { sequence: "Ctrl+,"; context: Qt.WindowShortcut; enabled: root.shortcutsEnabled; onActivated: if (controller) controller.menuAction("settings") }
 
     // 外观状态（字号 / 主题 / 强调色 / 字体方案 / 密度）驱动 Theme 单例换肤
     function applyAppearance() {
@@ -116,47 +141,6 @@ Rectangle {
                 Layout.fillHeight: true
             }
 
-            // 更新提示横幅 —— 紧贴输入框上方（沿用 1.5 的“输入区域上方”位置）
-            // updateState: available（可一键更新）/ downloading（显示进度、禁止关闭）/ ready
-            Rectangle {
-                id: updateNotice
-                Layout.fillWidth: true
-                visible: controller && controller.updateText.length > 0
-                implicitHeight: visible ? 34 : 0
-                color: Theme.accentSoft
-                Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Theme.accentLine }
-                Row {
-                    anchors.fill: parent; anchors.leftMargin: 15; anchors.rightMargin: 12; spacing: 10
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: parent.width - updateBtn.width - 56
-                        text: controller ? controller.updateText : ""
-                        color: Theme.accent; font.family: Theme.fontBody; font.pixelSize: Theme.fXs
-                        elide: Text.ElideRight
-                    }
-                    Rectangle {
-                        id: updateBtn
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: controller && controller.updateState === "available"
-                        width: visible ? updateBtnLabel.implicitWidth + 22 : 0
-                        height: 22; radius: 11
-                        color: "transparent"; border.width: 1; border.color: Theme.accent
-                        Text { id: updateBtnLabel; anchors.centerIn: parent; text: "立即更新"
-                               color: Theme.accent; font.family: Theme.fontBody; font.pixelSize: Theme.fXs }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                            onClicked: if (controller) controller.startUpdate() }
-                    }
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: !controller || (controller.updateState !== "downloading"
-                                                 && controller.updateState !== "installing")
-                        text: "✕"; color: Theme.textMute; font.pixelSize: Theme.fSm
-                        MouseArea { anchors.fill: parent; anchors.margins: -6; cursorShape: Qt.PointingHandCursor
-                            onClicked: if (controller) controller.dismissUpdate() }
-                    }
-                }
-            }
-
             ContextBar {
                 id: sceneContextBar
                 Layout.fillWidth: true
@@ -165,13 +149,14 @@ Rectangle {
                 Layout.alignment: Qt.AlignHCenter
             }
             Composer {
+                id: composer
                 objectName: "composer"
                 Layout.fillWidth: true
                 Layout.maximumWidth: Theme.contentMaxWidth + Theme.sp(16) * 2
                 Layout.rightMargin: conversationView.navigationGutter
                 Layout.alignment: Qt.AlignHCenter
                 availableHeightBudget: Math.max(0, conversationPane.height - conversationHeader.implicitHeight
-                    - sceneContextBar.implicitHeight - (updateNotice.visible ? updateNotice.implicitHeight : 0))
+                    - sceneContextBar.implicitHeight)
             }
         }
     }

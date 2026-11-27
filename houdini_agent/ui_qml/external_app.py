@@ -209,8 +209,8 @@ class ExternalCoordinator(QObject):
             if self._session_build_fails == 1:
                 self.controller.toast.emit("AI 后端初始化失败，正在自动重试…")
             elif self._session_build_fails >= 3:
-                self.controller.toast.emit(
-                    "AI 后端多次初始化失败，聊天暂不可用。请反馈日志：%LOCALAPPDATA%\\HoudiniAgent\\launcher.log")
+                log = Path(os.environ.get("LOCALAPPDATA") or str(Path.home())) / "HoudiniAgent" / "launcher.log"
+                self.controller.toast.emit("AI 后端多次初始化失败，聊天暂不可用。请反馈日志：%s" % log)
             return
         if self.controller._session is not None:
             return

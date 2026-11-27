@@ -36,6 +36,7 @@ class AgentRunnerMixin:
         'execute_shell',
         # 保存
         'save_hip',
+        'save_memory',
         # NetworkBox（会修改场景）
         'create_network_box',
         'add_nodes_to_box',
@@ -49,6 +50,7 @@ class AgentRunnerMixin:
         'search_local_doc',    # 纯 Python 文本检索
         'list_skills',         # 纯 Python 列表
         'search_memory',       # 纯 Python 记忆库检索
+        'save_memory',         # 本机记忆写入，不依赖 Houdini 主线程
     })
 
     # 静默工具：不在执行列表 UI 中显示（AI 自行调用，用户无需感知）
@@ -57,7 +59,7 @@ class AgentRunnerMixin:
         'update_todo',
     })
 
-    # ★ Plan 模式规划阶段白名单：只读工具 + create_plan
+    # ★ Plan 规划：只读场景工具 + create_plan；允许用户明确要求的记忆保存
     _PLAN_PLANNING_TOOLS = frozenset({
         # 查询 & 检查（复用 Ask 模式）
         'get_network_structure',
@@ -85,8 +87,9 @@ class AgentRunnerMixin:
         'list_network_boxes',
         'perf_start_profile',
         'perf_stop_and_report',
-        # 记忆搜索（只读）
+        # 本机记忆（写入仍受确认模式控制，不修改场景）
         'search_memory',
+        'save_memory',
         # 视口截图（只读）
         'capture_viewport',
         # ★ Plan 专用
@@ -106,7 +109,7 @@ class AgentRunnerMixin:
         'ask_question',
     })
 
-    # ★ Ask 模式白名单：只读 / 查询 / 分析工具（不包含任何修改场景的操作）
+    # ★ Ask 模式：只读场景工具，以及用户明确要求的本机记忆保存
     _ASK_MODE_TOOLS = frozenset({
         # 查询 & 检查
         'get_network_structure',
@@ -136,8 +139,9 @@ class AgentRunnerMixin:
         # PerfMon 性能分析（只读）
         'perf_start_profile',
         'perf_stop_and_report',
-        # 记忆搜索（只读）
+        # 本机记忆（写入仍受确认模式控制，不修改场景）
         'search_memory',
+        'save_memory',
         # 视口截图（只读）
         'capture_viewport',
     })

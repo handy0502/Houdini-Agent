@@ -109,6 +109,9 @@ class UpdateMixin:
 
     def _silent_update_check(self):
         """启动时静默检查更新（不弹窗，只在有更新时高亮按钮）"""
+        from ..utils.updater import supports_installer_updates
+        if not supports_installer_updates():
+            return
         try:
             self._updateCheckDone.connect(self._on_silent_check_result, QtCore.Qt.UniqueConnection)
         except RuntimeError:
@@ -184,6 +187,10 @@ class UpdateMixin:
 
     def _on_check_update(self):
         """点击 Update 按钮 → 后台检查更新（如果有缓存结果直接使用）"""
+        from ..utils.updater import supports_installer_updates, source_update_notice
+        if not supports_installer_updates():
+            QtWidgets.QMessageBox.information(self, "检查更新", source_update_notice())
+            return
         # 如果启动时已检测到新版本，直接显示结果
         cached = getattr(self, '_cached_update_result', None)
         if cached and cached.get('has_update'):
@@ -275,6 +282,10 @@ class UpdateMixin:
 
     def _start_update(self):
         """开始下载并应用更新"""
+        from ..utils.updater import supports_installer_updates
+        if not supports_installer_updates():
+            self._on_check_update()
+            return
         # 创建进度对话框，初始即用第一条搞怪文案 + 不确定进度条（动效）
         first_msg = self._UPDATE_FUNNY_MESSAGES[0]
         self._update_progress_dlg = QtWidgets.QProgressDialog(

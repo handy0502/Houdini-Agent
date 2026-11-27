@@ -32,13 +32,15 @@ Item {
                 width: parent.width
                 height: Math.round(38 * Theme.scale)
                 Row {
+                    id: headerContent
                     anchors.left: parent.left; anchors.leftMargin: 13
                     anchors.verticalCenter: parent.verticalCenter
+                    width: Math.max(0, head.width - 26 - Theme.fs(22) - 8)
                     spacing: 8
                     AppIcon { name: "settings"; color: Theme.textMute; anchors.verticalCenter: parent.verticalCenter }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        width: Math.max(80, head.width - 58)
+                        width: Math.max(0, headerContent.width - Theme.fs(18) - headerContent.spacing)
                         elide: Text.ElideRight
                         text: (eb.block.label || "Executing…") + (eb.shells.length > 0 ? (" · " + eb.shells.length + " shell") : "")
                         color: Theme.textDim
@@ -47,11 +49,13 @@ Item {
                         font.letterSpacing: Theme.trackLabel
                     }
                 }
-                Text {
+                AppIcon {
+                    objectName: "executionCollapseIcon"
                     anchors.right: parent.right; anchors.rightMargin: 13
                     anchors.verticalCenter: parent.verticalCenter
-                    text: eb.collapsed ? "▸" : "▾"
-                    color: Theme.textMute; font.pixelSize: Theme.fMicro
+                    width: Theme.fs(22); height: width
+                    name: "chevronDown"; rotation: eb.collapsed ? -90 : 0
+                    color: Theme.textDim
                 }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: eb.collapsed = !eb.collapsed }
             }

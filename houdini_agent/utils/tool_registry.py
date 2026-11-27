@@ -43,7 +43,7 @@ _ASK_TOOLS = frozenset({
     'get_network_structure', 'get_node_parameters', 'list_children',
     'read_selection', 'search_node_types', 'semantic_search_nodes',
     'find_nodes_by_param', 'get_node_inputs', 'check_errors',
-    'verify_and_summarize', 'web_search', 'fetch_webpage',
+    'verify_and_summarize', 'get_scene_facts', 'search_effect_cases', 'web_search', 'fetch_webpage',
     'search_local_doc', 'get_houdini_node_doc', 'list_skills',
     'add_todo', 'update_todo', 'get_node_positions',
     'list_network_boxes', 'perf_start_profile', 'perf_stop_and_report',
@@ -54,7 +54,7 @@ _PLAN_PLANNING_TOOLS = frozenset({
     'get_network_structure', 'get_node_parameters', 'list_children',
     'read_selection', 'search_node_types', 'semantic_search_nodes',
     'find_nodes_by_param', 'get_node_inputs', 'check_errors',
-    'verify_and_summarize', 'web_search', 'fetch_webpage',
+    'verify_and_summarize', 'get_scene_facts', 'search_effect_cases', 'web_search', 'fetch_webpage',
     'search_local_doc', 'get_houdini_node_doc', 'list_skills',
     'add_todo', 'update_todo', 'get_node_positions',
     'list_network_boxes', 'perf_start_profile', 'perf_stop_and_report',
@@ -66,7 +66,7 @@ _READONLY_TOOLS = frozenset({
     'get_network_structure', 'get_node_parameters', 'list_children',
     'read_selection', 'search_node_types', 'semantic_search_nodes',
     'find_nodes_by_param', 'get_node_inputs', 'check_errors',
-    'verify_and_summarize', 'web_search', 'fetch_webpage',
+    'verify_and_summarize', 'get_scene_facts', 'search_effect_cases', 'web_search', 'fetch_webpage',
     'search_local_doc', 'get_houdini_node_doc', 'list_skills',
     'get_node_positions', 'list_network_boxes',
     'perf_start_profile', 'perf_stop_and_report',
@@ -77,6 +77,8 @@ _READONLY_TOOLS = frozenset({
 def _infer_modes(name: str) -> Set[str]:
     """根据工具名自动推断适用模式"""
     modes = {"agent", "plan_executing"}  # 所有工具默认可在 Agent 和 Plan 执行阶段使用
+    if name in {"search_memory", "save_memory"}:
+        return {"agent", "ask", "plan_planning", "plan_executing"}
     if name in _ASK_TOOLS:
         modes.add("ask")
     if name in _PLAN_PLANNING_TOOLS:
@@ -305,6 +307,7 @@ class ToolRegistry:
     # 工具按功能分组
     _INTENT_TOOL_GROUPS: Dict[str, Set[str]] = {
         'query': {
+            'get_scene_facts', 'search_effect_cases',
             'get_network_structure', 'get_node_parameters', 'list_children',
             'check_errors', 'read_selection', 'get_node_inputs',
             'get_node_positions', 'list_network_boxes',
@@ -317,6 +320,7 @@ class ToolRegistry:
             'connect_nodes', 'copy_node',
         },
         'modify': {
+            'create_effect_controls', 'create_effect_variants',
             'set_node_parameter', 'batch_set_parameters', 'set_display_flag',
         },
         'code': {
@@ -326,7 +330,7 @@ class ToolRegistry:
             'web_search', 'fetch_webpage', 'search_local_doc',
             'search_node_types', 'semantic_search_nodes',
             'find_nodes_by_param', 'get_houdini_node_doc',
-            'search_memory',
+            'search_memory', 'save_memory',
         },
         'layout': {
             'layout_nodes', 'create_network_box',
@@ -338,6 +342,7 @@ class ToolRegistry:
             'perf_start_profile', 'perf_stop_and_report',
         },
         'file': {
+            'save_effect_case', 'package_effect',
             'save_hip', 'undo_redo',
         },
         'plan': {

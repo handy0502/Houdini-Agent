@@ -417,73 +417,8 @@ class RunMixin:
                 except Exception:
                     use_undo_group = False  # hou 不可用则跳过
 
-            if tool_name == "verify_and_summarize":
-                check_items = kwargs.get("check_items", [])
-                expected = kwargs.get("expected_result", "")
-
-                # 确保 check_items 是列表类型（防止 unhashable type: 'slice' 错误）
-                if not isinstance(check_items, list):
-                    if isinstance(check_items, str):
-                        check_items = [check_items]
-                    elif hasattr(check_items, '__iter__') and not isinstance(check_items, (dict, str)):
-                        check_items = list(check_items)
-                    else:
-                        check_items = []
-
-                # 获取当前网络结构进行验证
-                ok, structure_data = self.mcp.get_network_structure()
-
-                # 自动检测问题
-                issues = []
-                if ok and isinstance(structure_data, dict):
-                    nodes = structure_data.get('nodes', [])
-                    connections = structure_data.get('connections', [])
-
-                    # 收集所有已连接的节点
-                    connected_nodes = set()
-                    for conn in connections:
-                        from_path = conn.get('from', '')
-                        to_path = conn.get('to', '')
-                        if from_path:
-                            connected_nodes.add(from_path.split('/')[-1])
-                        if to_path:
-                            connected_nodes.add(to_path.split('/')[-1])
-
-                    # 检测问题
-                    for node in nodes:
-                        node_name = node.get('name', '')
-                        # 检测错误节点
-                        if node.get('has_errors'):
-                            issues.append(tr('ai.err_issues', node_name))
-                        # 检测孤立节点（非输出节点且未连接）
-                        if node_name not in connected_nodes:
-                            node_type = node.get('type', '').lower()
-                            # 排除输出节点和根节点
-                            if not any(x in node_type for x in ['output', 'null', 'out', 'merge']):
-                                if not any(x in node_name.lower() for x in ['out', 'output', 'result']):
-                                    issues.append(f"orphan:{node_name}")
-
-                    # 检查是否有显示的输出节点
-                    has_displayed = any(node.get('is_displayed') for node in nodes)
-                    if not has_displayed and nodes:
-                        issues.append(tr('ai.no_display'))
-
-                # 生成验证结果
-                if issues:
-                    issues_str = ' | '.join(issues[:5])  # 最多显示5个问题
-                    result = {
-                        "success": True,
-                        "result": tr('ai.check_fail', issues_str)
-                    }
-                else:
-                    check_items_str = ', '.join(str(item) for item in check_items[:3]) if check_items else tr('ai.check_none')
-                    result = {
-                        "success": True,
-                        "result": tr('ai.check_pass', expected[:30] if expected else 'done')
-                    }
-            else:
-                # 其他工具交给 MCP 处理
-                result = self.mcp.execute_tool(tool_name, kwargs)
+            # Shared MCP implementation: legacy, QML and Bridge use identical checks.
+            result = self.mcp.execute_tool(tool_name, kwargs)
         except Exception as e:
             result = {"success": False, "error": tr('ai.tool_exec_err', str(e))}
         finally:
@@ -1094,7 +1029,7 @@ class RunMixin:
             #   避免 LLM 在关闭长期记忆的情况下仍调用它读到污染性经验。
             if not self._is_memory_active():
                 tools = [t for t in tools
-                         if t.get('function', {}).get('name') != 'search_memory']
+                         if t.get('function', {}).get('name') not in ('search_memory', 'save_memory')]
 
             # ★ 非视觉模型：capture_viewport 降级为仅保存文件（不注入图片）
             # 不再移除工具——AI 仍可截图保存让用户自行查看
